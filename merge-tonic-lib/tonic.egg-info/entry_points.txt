@@ -1,0 +1,2 @@
+[console_scripts]
+tonic-merge = tonic.cli:main

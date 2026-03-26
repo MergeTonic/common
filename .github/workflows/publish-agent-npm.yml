@@ -1,0 +1,60 @@
+name: Publish @mergetonic/github-agent (npm)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base ref for change detection
+        required: true
+        default: main
+      head_ref:
+        description: Head ref for change detection
+        required: true
+        default: HEAD
+      publish_npm:
+        description: Actually publish to npm (manual safety gate)
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  detect:
+    uses: ./.github/workflows/detect-release-matrix.yml
+    with:
+      base_ref: ${{ inputs.base_ref }}
+      head_ref: ${{ inputs.head_ref }}
+
+  publish:
+    needs: [detect, test]
+    if: contains(needs.detect.outputs.matrix_json, '"id": "js-action"') && inputs.publish_npm == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/core
+      - run: npm run build -w @mergetonic/github-agent
+      - name: Smoke run (local demo)
+        run: npx --yes ./agents/github-action-agent-node
+        env:
+          GITHUB_REPOSITORY: ""
+      - run: npm publish -w @mergetonic/github-agent --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  test:
+    needs: detect
+    if: contains(needs.detect.outputs.matrix_json, '"id": "js-action"')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run test -w @mergetonic/github-agent

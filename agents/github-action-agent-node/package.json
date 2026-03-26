@@ -1,0 +1,37 @@
+{
+  "name": "@mergetonic/github-agent",
+  "version": "0.1.0",
+  "description": "GitHub PR agent for Tonic merge visualization (Node)",
+  "homepage": "https://github.com/mergetonic/common/wiki/GitHub-Agent-Node",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mergetonic/common.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mergetonic/common/issues"
+  },
+  "license": "Unlicense",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "bin": {
+    "merge-tonic-github-agent": "./dist/cli.js",
+    "mergetonic-github-agent": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test dist/test/agent.test.js dist/test/headLineMap.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@mergetonic/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,0 +1,33 @@
+name: CI Core (tonic)
+
+on:
+  push:
+    paths:
+      - "merge-tonic-lib/**"
+      - "packages/tonic-core/**"
+      - "docs/**"
+      - ".github/workflows/ci-core.yml"
+  pull_request:
+    paths:
+      - "merge-tonic-lib/**"
+      - "packages/tonic-core/**"
+      - "docs/**"
+      - ".github/workflows/ci-core.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install and test
+        run: |
+          pip install -e "./merge-tonic-lib[dev]"
+          python -m pytest merge-tonic-lib/tests -v
+      - name: Build wheel
+        run: pip wheel "./merge-tonic-lib" -w dist --no-deps

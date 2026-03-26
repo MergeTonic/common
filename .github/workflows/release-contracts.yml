@@ -1,0 +1,26 @@
+name: Release Contracts
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - "release-targets.json"
+      - "scripts/release/**"
+      - "agents/github-action-agent/**"
+      - "agents/github-action-agent-node/**"
+      - "packages/tonic-core/**"
+      - "merge-tonic-lib/**"
+      - "extensions/tonic-conflict-resolver/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate release contracts
+        run: python scripts/release/validate_release_contracts.py

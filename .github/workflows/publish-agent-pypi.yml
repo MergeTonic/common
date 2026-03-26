@@ -1,0 +1,65 @@
+name: Publish mergetonic-github-agent (PyPI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base ref for change detection
+        required: true
+        default: main
+      head_ref:
+        description: Head ref for change detection
+        required: true
+        default: HEAD
+      publish_pypi:
+        description: Actually publish to PyPI (manual safety gate)
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  detect:
+    uses: ./.github/workflows/detect-release-matrix.yml
+    with:
+      base_ref: ${{ inputs.base_ref }}
+      head_ref: ${{ inputs.head_ref }}
+
+  publish:
+    needs: [detect, test]
+    if: contains(needs.detect.outputs.matrix_json, '"id": "py-action"') && inputs.publish_pypi == true
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install build
+        run: pip install build
+      - name: Build agent wheel and sdist
+        run: python -m build agents/github-action-agent
+      - name: Smoke install (wheel + PyPI tonic)
+        run: |
+          pip install agents/github-action-agent/dist/tonic_github_agent-*.whl
+          python -c "import tonic_agent; import tonic"
+          # Local demo path (no PR event)
+          python -m tonic_agent
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: agents/github-action-agent/dist/
+
+  test:
+    needs: detect
+    if: contains(needs.detect.outputs.matrix_json, '"id": "py-action"')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "./merge-tonic-lib[dev]"
+      - run: pip install -e "./agents/github-action-agent[dev]"
+      - run: python -m pytest agents/github-action-agent/tests -v

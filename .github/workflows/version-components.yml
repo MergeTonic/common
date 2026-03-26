@@ -1,0 +1,53 @@
+name: Version Components
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component id (ts_cli/js_action/vsmt/py_cli/py_action)
+        required: true
+      version:
+        description: Optional explicit version (defaults to patch bump)
+        required: false
+        default: ""
+      changelog_notes:
+        description: Changelog notes
+        required: false
+        default: Automated release entry.
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Bump component version
+        id: bump
+        run: |
+          python scripts/release/bump_component_version.py \
+            --component "${{ inputs.component }}" \
+            --version "${{ inputs.version }}" > bump.json
+          echo "bump=$(cat bump.json)" >> "${GITHUB_OUTPUT}"
+      - name: Append component changelog
+        run: |
+          NEW_V="$(python -c 'import json; print(json.load(open("bump.json"))["new"])')"
+          python scripts/release/append_component_changelog.py \
+            --component "${{ inputs.component }}" \
+            --version "${NEW_V}" \
+            --notes "${{ inputs.changelog_notes }}"
+      - name: Create version bump PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "release/bump-${{ inputs.component }}"
+          git add .
+          git commit -m "chore(release): bump ${{ inputs.component }} version"
+          git push -u origin "release/bump-${{ inputs.component }}"
+          gh pr create --title "chore(release): bump ${{ inputs.component }}" --body "Automated component version bump."

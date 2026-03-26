@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mergetonic"
+version = "0.1.0"
+description = "Deterministic merge / conflict engine (CRDT weave) for version control"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Unlicense" }
+authors = [{ name = "Merge Tonic contributors" }]
+
+[project.urls]
+Documentation = "https://github.com/mergetonic/common/wiki/Core-Python-mergetonic"
+Repository = "https://github.com/mergetonic/common"
+Issues = "https://github.com/mergetonic/common/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+mergetonic = "tonic.cli:main"
+merge-tonic = "tonic.cli:main"
+tonic-merge = "tonic.cli:main"
+mt = "tonic.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

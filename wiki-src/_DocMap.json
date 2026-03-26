@@ -1,0 +1,8 @@
+{
+  "common": "https://github.com/mergetonic/common/wiki",
+  "tsmt": "https://github.com/mergetonic/common/wiki/Core-TS-%40mergetonic-core",
+  "mtpy": "https://github.com/mergetonic/common/wiki/Core-Python-mergetonic",
+  "js-action": "https://github.com/mergetonic/common/wiki/GitHub-Agent-Node",
+  "py-action": "https://github.com/mergetonic/common/wiki/GitHub-Agent-Python",
+  "vsmt": "https://github.com/mergetonic/common/wiki/VSCode-Extension"
+}

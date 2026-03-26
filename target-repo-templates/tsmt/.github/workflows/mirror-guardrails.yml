@@ -1,0 +1,17 @@
+name: Mirror Guardrails
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify mirrored provenance
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.actor }}" != "github-actions[bot]" ]; then
+            echo "Direct push to mirrored repository is not allowed; contribute via mergetonic/common."
+            exit 1
+          fi

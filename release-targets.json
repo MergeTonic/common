@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "id": "vsmt",
+      "repo": "mergetonic/vsmt",
+      "component": "vscode_extension",
+      "paths": [
+        "extensions/tonic-conflict-resolver/**",
+        "target-repo-templates/vsmt/**"
+      ],
+      "release_types": ["repo_sync", "vsix"],
+      "source_dir": "extensions/tonic-conflict-resolver",
+      "template_dir": "target-repo-templates/vsmt",
+      "version_key": "vsmt",
+      "sync_policy": {
+        "managed_paths": ["src", "out", "package.json", "tsconfig.json", ".vscodeignore"],
+        "preserve_paths": ["README.md", ".github"]
+      }
+    },
+    {
+      "id": "js-action",
+      "repo": "mergetonic/js-action",
+      "component": "js_action",
+      "paths": [
+        "agents/github-action-agent-node/**",
+        "target-repo-templates/js-action/**"
+      ],
+      "release_types": ["repo_sync", "npm", "github_action"],
+      "source_dir": "agents/github-action-agent-node",
+      "template_dir": "target-repo-templates/js-action",
+      "version_key": "js_action",
+      "sync_policy": {
+        "managed_paths": ["src", "dist", "action.yml", "package.json", "tsconfig.json"],
+        "preserve_paths": ["README.md", ".github"]
+      }
+    },
+    {
+      "id": "py-action",
+      "repo": "mergetonic/py-action",
+      "component": "py_action",
+      "paths": [
+        "agents/github-action-agent/**",
+        "target-repo-templates/py-action/**"
+      ],
+      "release_types": ["repo_sync", "pypi", "github_action"],
+      "source_dir": "agents/github-action-agent",
+      "template_dir": "target-repo-templates/py-action",
+      "version_key": "py_action",
+      "sync_policy": {
+        "managed_paths": ["src", "tests", "action.yml", "pyproject.toml"],
+        "preserve_paths": ["README.md", ".github"]
+      }
+    },
+    {
+      "id": "tsmt",
+      "repo": "mergetonic/tsmt",
+      "component": "ts_cli",
+      "paths": [
+        "packages/tonic-core/**",
+        "target-repo-templates/tsmt/**"
+      ],
+      "release_types": ["repo_sync", "npm"],
+      "source_dir": "packages/tonic-core",
+      "template_dir": "target-repo-templates/tsmt",
+      "version_key": "ts_cli",
+      "sync_policy": {
+        "managed_paths": ["src", "dist", "package.json", "tsconfig.json"],
+        "preserve_paths": ["README.md", ".github"]
+      }
+    },
+    {
+      "id": "mtpy",
+      "repo": "mergetonic/mtpy",
+      "component": "py_cli",
+      "paths": [
+        "merge-tonic-lib/**",
+        "target-repo-templates/mtpy/**"
+      ],
+      "release_types": ["repo_sync", "pypi"],
+      "source_dir": "merge-tonic-lib",
+      "template_dir": "target-repo-templates/mtpy",
+      "version_key": "py_cli",
+      "sync_policy": {
+        "managed_paths": ["tonic", "tests", "pyproject.toml"],
+        "preserve_paths": ["README.md", ".github"]
+      }
+    },
+    {
+      "id": ".github",
+      "repo": "merge-tonic/.github",
+      "component": "org_community",
+      "paths": [
+        ".github/**",
+        "org/**",
+        "community/**",
+        "target-repo-templates/.github/**"
+      ],
+      "release_types": ["repo_sync"],
+      "source_dir": ".github",
+      "template_dir": "target-repo-templates/.github",
+      "sync_policy": {
+        "managed_paths": [".github"],
+        "preserve_paths": ["README.md"]
+      }
+    },
+    {
+      "id": "common",
+      "repo": "mergetonic/common",
+      "component": "monorepo",
+      "paths": ["**"],
+      "release_types": [],
+      "selectable": false
+    }
+  ]
+}

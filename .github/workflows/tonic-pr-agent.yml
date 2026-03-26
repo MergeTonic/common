@@ -1,0 +1,64 @@
+# Runs the Tonic GitHub Action on pull requests: hydrates base/head file blobs,
+# runs weave merge, posts/upserts PR comments and uploads a JSON report artifact.
+#
+# Fork PRs: secrets.GITHUB_TOKEN has limited permissions on forks; use a PAT with
+# pull-requests: write on the target repo if you need comments on external PRs.
+
+name: Tonic PR agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  tonic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Tonic agent
+        id: tonic
+        uses: ./agents/github-action-agent
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          comment_mode: all
+          verbosity: medium
+          hydrate_mode: pr-diff
+          report_path: merge-tonic-report.json
+          enable_ai: "false"
+          enable_checks: "false"
+
+      - name: Log Tonic action outputs
+        run: |
+          echo "tonic.status=${{ steps.tonic.outputs.status }}"
+          echo "tonic.files_analyzed=${{ steps.tonic.outputs.files_analyzed }}"
+          echo "tonic.conflicted_files=${{ steps.tonic.outputs.conflicted_files }}"
+          echo "tonic.report_path=${{ steps.tonic.outputs.report_path }}"
+
+      - name: Confirm normal PR agent execution
+        if: ${{ steps.tonic.outputs.status == 'ok' }}
+        run: echo "Tonic agent completed normal PR hydration/comment flow."
+
+      - name: Warn on demo fallback execution
+        if: ${{ steps.tonic.outputs.status == 'demo' }}
+        run: |
+          echo "::warning::Tonic agent ran in demo mode (missing PR event context, repo, or token)."
+          echo "::warning::Check GITHUB_EVENT_PATH, GITHUB_REPOSITORY, and token wiring."
+
+      - name: Notice when conflicts were detected
+        if: ${{ steps.tonic.outputs.conflicted_files != '0' }}
+        run: |
+          echo "::notice::Tonic found ${{ steps.tonic.outputs.conflicted_files }} conflicted file(s)."
+          echo "::notice::Download merge-tonic-report artifact to import into the VS Code extension."
+
+      - name: Upload merge report
+        if: ${{ steps.tonic.outputs.report_path != '' && hashFiles(steps.tonic.outputs.report_path) != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: merge-tonic-report
+          path: ${{ steps.tonic.outputs.report_path }}

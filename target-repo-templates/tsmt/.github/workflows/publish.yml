@@ -1,0 +1,25 @@
+name: Publish tsmt
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_npm:
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    if: inputs.publish_npm == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

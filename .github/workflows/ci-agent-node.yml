@@ -1,0 +1,29 @@
+name: CI Agent (Node)
+
+on:
+  push:
+    paths:
+      - "agents/github-action-agent-node/**"
+      - "packages/tonic-core/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-agent-node.yml"
+  pull_request:
+    paths:
+      - "agents/github-action-agent-node/**"
+      - "packages/tonic-core/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-agent-node.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/core
+      - run: npm run test -w @mergetonic/github-agent

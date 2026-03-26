@@ -1,0 +1,13 @@
+{
+  "name": "mergetonic",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "extensions/tonic-conflict-resolver",
+    "agents/github-action-agent-node"
+  ],
+  "scripts": {
+    "build": "npm run build -w @mergetonic/core -w @mergetonic/github-agent && npm run compile -w merge-conflict-resolver",
+    "test": "npm run test -w @mergetonic/core && npm run test -w merge-conflict-resolver && npm run test -w @mergetonic/github-agent"
+  }
+}

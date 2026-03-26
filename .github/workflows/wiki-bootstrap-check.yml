@@ -1,0 +1,29 @@
+name: Wiki Bootstrap Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      verify_push:
+        description: Verify wiki write capability with dry-run push probe
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  wiki_bootstrap_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run wiki preflight
+        run: |
+          PUSH_FLAG=""
+          if [ "${{ inputs.verify_push }}" = "true" ]; then
+            PUSH_FLAG="--verify-push"
+          fi
+          python scripts/docs/wiki_preflight.py --repo "${{ github.repository }}" ${PUSH_FLAG}

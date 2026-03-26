@@ -1,0 +1,30 @@
+name: CI Agent
+
+on:
+  push:
+    paths:
+      - "agents/github-action-agent/**"
+      - "merge-tonic-lib/**"
+      - "packages/tonic-core/**"
+      - ".github/workflows/ci-agent.yml"
+  pull_request:
+    paths:
+      - "agents/github-action-agent/**"
+      - "merge-tonic-lib/**"
+      - "packages/tonic-core/**"
+      - ".github/workflows/ci-agent.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install tonic + agent
+        run: |
+          pip install -e "./merge-tonic-lib[dev]"
+          pip install -e "./agents/github-action-agent[dev]"
+      - name: Pytest
+        run: python -m pytest agents/github-action-agent/tests -v

@@ -1,0 +1,53 @@
+name: Detect Release Matrix
+
+on:
+  workflow_call:
+    inputs:
+      base_ref:
+        required: true
+        type: string
+      head_ref:
+        required: true
+        type: string
+      always_include:
+        required: false
+        type: string
+        default: ""
+    outputs:
+      matrix_json:
+        description: Changed targets matrix JSON
+        value: ${{ jobs.detect.outputs.matrix_json }}
+      target_count:
+        description: Number of changed targets
+        value: ${{ jobs.detect.outputs.target_count }}
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      target_count: ${{ steps.detect.outputs.target_count }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Detect changed targets
+        id: detect
+        shell: bash
+        run: |
+          ALWAYS_ARGS=""
+          if [ -n "${{ inputs.always_include }}" ]; then
+            ALWAYS_ARGS="--always-include ${{ inputs.always_include }}"
+          fi
+
+          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py \
+            --base-ref '${{ inputs.base_ref }}' \
+            --head-ref '${{ inputs.head_ref }}' \
+            ${ALWAYS_ARGS})"
+
+          TARGET_COUNT="$(python -c 'import json,sys; print(json.loads(sys.argv[1])["include_count"])' "${MATRIX_JSON}")"
+
+          {
+            echo "matrix_json<<EOF"
+            echo "${MATRIX_JSON}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+          echo "target_count=${TARGET_COUNT}" >> "${GITHUB_OUTPUT}"

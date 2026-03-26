@@ -1,0 +1,35 @@
+name: CI JS core (@mergetonic/core)
+
+on:
+  push:
+    paths:
+      - "packages/tonic-core/**"
+      - "merge-tonic-lib/**"
+      - "docs/**"
+      - ".github/workflows/ci-js-core.yml"
+  pull_request:
+    paths:
+      - "packages/tonic-core/**"
+      - "merge-tonic-lib/**"
+      - "docs/**"
+      - ".github/workflows/ci-js-core.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - name: Install Python tonic (parity gate)
+        run: pip install -e "./merge-tonic-lib[dev]"
+      - name: Install Node deps
+        run: npm ci
+      - name: Test @mergetonic/core (unit + Python parity)
+        run: npm run test -w @mergetonic/core
+      - name: Build @mergetonic/core
+        run: npm run build -w @mergetonic/core

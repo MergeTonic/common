@@ -1,0 +1,12 @@
+{
+  "mode": "pilot",
+  "warning_only": true,
+  "allowlist_pages": [
+    "Home.md",
+    "_Sidebar.md",
+    "Contributing-Docs.md",
+    "Core-TS-@mergetonic-core.md",
+    "Core-Python-mergetonic.md"
+  ],
+  "denylist_pages": []
+}

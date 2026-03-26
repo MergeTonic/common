@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Tonic: run GitHub agent locally (demo / no PR event)",
+      "type": "shell",
+      "command": "pip install -e ../../merge-tonic-lib && pip install -e ../../agents/github-action-agent && python -m tonic_agent",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {}
+      },
+      "group": "none",
+      "presentation": { "reveal": "always" }
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+name: Tonic Agent (Node)
+description: Post Tonic merge visualization comments on pull requests (TypeScript runtime + @mergetonic/core)
+inputs:
+  token:
+    description: GitHub token with PR comment permissions
+    required: true
+  comment_mode:
+    description: summary-only | file+inline | inline-only | all
+    required: false
+    default: all
+  verbosity:
+    description: low | medium | high
+    required: false
+    default: medium
+  max_inline_comments_per_file:
+    description: Cap for inline review threads per file
+    required: false
+    default: "20"
+  max_suggestion_lines:
+    description: Max lines per GitHub suggestion block (use 0 for uncapped; GitHub may still reject very large bodies)
+    required: false
+    default: "200"
+  hydrate_mode:
+    description: pr-diff or symmetric-union
+    required: false
+    default: pr-diff
+  report_path:
+    description: "VS Code Import merge report — writes JSON here; files with markers_present include annotated_lines by default (same as Python agent)."
+    required: false
+    default: ""
+  enable_blame:
+    description: "true to include optional blame metadata in report/comments"
+    required: false
+    default: "false"
+  blame_max_commits:
+    description: "Maximum commit ids to include per side in blame summaries"
+    required: false
+    default: "3"
+  enable_ai:
+    description: "true to use OpenAI-compatible API (TONIC_AGENT_OPENAI_*) for inline suggestions when keys are set"
+    required: false
+    default: "false"
+  enable_checks:
+    description: "true to post a GitHub Check run with annotations (requires checks:write)"
+    required: false
+    default: "false"
+  tonic_github_agent_version:
+    description: "npm version of @mergetonic/github-agent when not using the mergetonic workspace"
+    required: false
+    default: "0.1.0"
+outputs:
+  status:
+    description: "Run status (ok or demo)"
+    value: ${{ steps.run_agent.outputs.status }}
+  files_analyzed:
+    description: "Number of files analyzed by the agent"
+    value: ${{ steps.run_agent.outputs.files_analyzed }}
+  conflicted_files:
+    description: "Number of files with conflict markers"
+    value: ${{ steps.run_agent.outputs.conflicted_files }}
+  report_path:
+    description: "Report path if requested"
+    value: ${{ steps.run_agent.outputs.report_path }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: "20"
+    - id: run_agent
+      name: Install and run agent
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_COMMENT_MODE: ${{ inputs.comment_mode }}
+        INPUT_VERBOSITY: ${{ inputs.verbosity }}
+        INPUT_MAX_INLINE_COMMENTS_PER_FILE: ${{ inputs.max_inline_comments_per_file }}
+        INPUT_MAX_SUGGESTION_LINES: ${{ inputs.max_suggestion_lines }}
+        INPUT_HYDRATE_MODE: ${{ inputs.hydrate_mode }}
+        INPUT_ENABLE_BLAME: ${{ inputs.enable_blame }}
+        INPUT_BLAME_MAX_COMMITS: ${{ inputs.blame_max_commits }}
+        TONIC_AGENT_REPORT_PATH: ${{ inputs.report_path }}
+        INPUT_ENABLE_AI: ${{ inputs.enable_ai }}
+        INPUT_ENABLE_CHECKS: ${{ inputs.enable_checks }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        TONIC_AGENT_NPM_V: ${{ inputs.tonic_github_agent_version }}
+      run: |
+        if [ -f "${GITHUB_WORKSPACE}/agents/github-action-agent-node/package.json" ]; then
+          npm ci
+          npm run build -w @mergetonic/core -w @mergetonic/github-agent
+          node "${GITHUB_WORKSPACE}/agents/github-action-agent-node/dist/index.js"
+        elif [ -f "${GITHUB_ACTION_PATH}/package.json" ]; then
+          npm ci --prefix "${GITHUB_ACTION_PATH}"
+          npm run build --prefix "${GITHUB_ACTION_PATH}"
+          node "${GITHUB_ACTION_PATH}/dist/index.js"
+        else
+          npx --yes @mergetonic/github-agent@${TONIC_AGENT_NPM_V}
+        fi

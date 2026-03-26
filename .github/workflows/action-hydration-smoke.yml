@@ -1,0 +1,43 @@
+name: Action Hydration Smoke
+
+on:
+  pull_request:
+    paths:
+      - "agents/github-action-agent/**"
+      - "agents/github-action-agent-node/**"
+      - "merge-tonic-lib/**"
+      - "packages/tonic-core/**"
+  workflow_dispatch:
+
+jobs:
+  python-action-hydration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Verify Python action metadata
+        run: |
+          python - <<'PY'
+from pathlib import Path
+text = Path("agents/github-action-agent/action.yml").read_text(encoding="utf-8")
+assert "runs:" in text
+assert "using: composite" in text
+assert "tonic_version" in text
+assert "tonic_github_agent_version" in text
+print("python action.yml contract ok")
+PY
+
+  node-action-hydration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/core -w @mergetonic/github-agent
+      - name: Verify Node action metadata
+        run: |
+          node -e "const fs=require('fs'); const y=fs.readFileSync('agents/github-action-agent-node/action.yml','utf8'); if(!y.includes('using: composite')||!y.includes('tonic_github_agent_version')) process.exit(1);"

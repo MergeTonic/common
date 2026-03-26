@@ -1,0 +1,55 @@
+name: Validate Documentation Links
+
+on:
+  pull_request:
+    paths:
+      - "wiki-src/**"
+      - "scripts/docs/**"
+      - "**/README.md"
+      - "**/package.json"
+      - "**/pyproject.toml"
+      - ".github/workflows/validate-doc-links.yml"
+  workflow_dispatch:
+    inputs:
+      warning_only:
+        description: Report validation but do not fail
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate canonical docs links
+        run: |
+          set +e
+          python scripts/docs/validate_doc_links.py
+          CODE=$?
+          CONFIG_WARNING_ONLY="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("wiki-src/_PublishConfig.json")
+          if p.exists():
+              cfg = json.loads(p.read_text(encoding="utf-8"))
+              print("true" if cfg.get("warning_only") else "false")
+          else:
+              print("false")
+          PY
+          )"
+          if [ "${CONFIG_WARNING_ONLY}" = "true" ]; then
+            echo "warning-only mode from wiki-src/_PublishConfig.json; exiting 0"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.warning_only }}" = "true" ]; then
+            echo "warning-only mode enabled; exiting 0"
+            exit 0
+          fi
+          exit ${CODE}

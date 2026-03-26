@@ -1,0 +1,263 @@
+name: Release Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_mode:
+        description: monorepo-only | target-sync-pr | full-release
+        required: true
+        default: monorepo-only
+      base_ref:
+        description: Base ref for change detection
+        required: true
+        default: main
+      head_ref:
+        description: Head ref for change detection
+        required: true
+        default: HEAD
+      target_branch:
+        description: Target branch for downstream sync
+        required: true
+        default: main
+      publish_registries:
+        description: Publish npm/PyPI/VSIX in this run
+        required: true
+        type: boolean
+        default: false
+      dry_run:
+        description: Run sync without writing repos
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      target_count: ${{ steps.detect.outputs.target_count }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Detect changed targets
+        id: detect
+        run: |
+          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py --base-ref '${{ inputs.base_ref }}' --head-ref '${{ inputs.head_ref }}')"
+          TARGET_COUNT="$(python -c 'import json,sys; print(json.loads(sys.argv[1])["include_count"])' "${MATRIX_JSON}")"
+          {
+            echo "matrix_json<<EOF"
+            echo "${MATRIX_JSON}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+          echo "target_count=${TARGET_COUNT}" >> "${GITHUB_OUTPUT}"
+
+  validate:
+    runs-on: ubuntu-latest
+    needs: detect
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate release contracts and topology
+        run: python scripts/release/validate_release_contracts.py
+      - name: Validate release matrix generation
+        run: python scripts/release/detect_release_matrix.py --base-ref "${{ inputs.base_ref }}" --head-ref "${{ inputs.head_ref }}" > /tmp/matrix.json
+      - name: Validate action hydration contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          py = Path("agents/github-action-agent/action.yml").read_text(encoding="utf-8")
+          js = Path("agents/github-action-agent-node/action.yml").read_text(encoding="utf-8")
+          assert "using: composite" in py and "using: composite" in js
+          assert "tonic_github_agent_version" in py and "tonic_github_agent_version" in js
+          print("action hydration contracts ok")
+          PY
+      - name: Validate docs governance
+        run: |
+          python scripts/docs/validate_doc_links.py
+          python scripts/docs/validate_wiki_rendering.py
+
+  version_gate:
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      versions: ${{ steps.collect.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Collect versions
+        id: collect
+        run: |
+          python scripts/release/collect_versions.py > versions.json
+          echo "versions=$(cat versions.json)" >> "${GITHUB_OUTPUT}"
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [detect, validate, version_gate]
+    if: inputs.publish_registries == true
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: pip install build
+      - name: Publish selected npm packages
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix_json }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm ci
+          python - <<'PY'
+          import json, os
+          matrix = json.loads(os.environ["MATRIX"])
+          ids = {t["id"] for t in matrix.get("targets", [])}
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+            f.write(f"PUBLISH_TSMT={'true' if 'tsmt' in ids else 'false'}\n")
+            f.write(f"PUBLISH_JS_ACTION={'true' if 'js-action' in ids else 'false'}\n")
+          PY
+          if [ "${PUBLISH_TSMT}" = "true" ]; then
+            npm run build -w @mergetonic/core
+            npm publish -w @mergetonic/core --access public
+          fi
+          if [ "${PUBLISH_JS_ACTION}" = "true" ]; then
+            npm run build -w @mergetonic/core -w @mergetonic/github-agent
+            npm publish -w @mergetonic/github-agent --access public
+          fi
+      - name: Publish selected PyPI packages
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix_json }}
+        run: |
+          python - <<'PY'
+          import json, os
+          matrix = json.loads(os.environ["MATRIX"])
+          ids = {t["id"] for t in matrix.get("targets", [])}
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+            f.write(f"PUBLISH_MTPY={'true' if 'mtpy' in ids else 'false'}\n")
+            f.write(f"PUBLISH_PY_ACTION={'true' if 'py-action' in ids else 'false'}\n")
+          PY
+          if [ "${PUBLISH_MTPY}" = "true" ]; then
+            python -m build merge-tonic-lib
+            python -m pip install twine
+            python -m twine upload merge-tonic-lib/dist/* --non-interactive
+          fi
+          if [ "${PUBLISH_PY_ACTION}" = "true" ]; then
+            python -m build agents/github-action-agent
+            python -m pip install twine
+            python -m twine upload agents/github-action-agent/dist/* --non-interactive
+          fi
+      - name: Publish VSIX targets
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix_json }}
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          python - <<'PY'
+          import json, os
+          matrix = json.loads(os.environ["MATRIX"])
+          ids = {t["id"] for t in matrix.get("targets", [])}
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+            f.write(f"PUBLISH_VSMT={'true' if 'vsmt' in ids else 'false'}\n")
+          PY
+          if [ "${PUBLISH_VSMT}" = "true" ]; then
+            npm run build -w @mergetonic/core
+            npm run compile -w merge-conflict-resolver
+            pushd extensions/tonic-conflict-resolver
+            npx --yes @vscode/vsce package --no-dependencies
+            npx --yes @vscode/vsce publish --no-dependencies
+            npx --yes ovsx publish *.vsix -p "${OVSX_PAT}"
+            popd
+          fi
+
+  verify_publish:
+    runs-on: ubuntu-latest
+    needs: [detect, version_gate, publish]
+    if: always() && (inputs.release_mode == 'full-release' || inputs.release_mode == 'target-sync-pr')
+    outputs:
+      can_tag: ${{ steps.verify.outputs.can_tag }}
+    steps:
+      - name: Verify action publish availability
+        id: verify
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix_json }}
+          VERSIONS: ${{ needs.version_gate.outputs.versions }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import urllib.request
+
+          matrix = json.loads(os.environ["MATRIX"])
+          versions = json.loads(os.environ["VERSIONS"])
+          ids = {t["id"] for t in matrix.get("targets", [])}
+          can_tag = True
+
+          if "js-action" in ids:
+            js_v = versions["js_action"]
+            subprocess.check_call(["npm", "view", f"@mergetonic/github-agent@{js_v}", "version"])
+          if "py-action" in ids:
+            py_v = versions["py_action"]
+            with urllib.request.urlopen("https://pypi.org/pypi/mergetonic-github-agent/json", timeout=20) as r:
+              data = json.loads(r.read().decode("utf-8"))
+            if py_v not in data.get("releases", {}):
+              raise SystemExit(f"missing mergetonic-github-agent=={py_v}")
+
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a", encoding="utf-8") as f:
+            f.write(f"can_tag={'true' if can_tag else 'false'}\n")
+          PY
+
+  sync:
+    runs-on: ubuntu-latest
+    needs: [detect, verify_publish]
+    if: inputs.release_mode != 'monorepo-only'
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.detect.outputs.matrix_json).targets }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Skip non-sync targets
+        if: matrix.target.sync_repo != true
+        run: echo "Skipping ${{ matrix.target.id }} because it is not repo_sync."
+      - name: Sync target
+        if: matrix.target.sync_repo == true
+        env:
+          GH_TOKEN: ${{ secrets.TARGET_REPO_BOT_TOKEN }}
+        run: |
+          MODE="direct-push"
+          if [ "${{ inputs.release_mode }}" = "target-sync-pr" ]; then
+            MODE="pr-only"
+          fi
+          PR_ONLY=""
+          if [ "${MODE}" = "pr-only" ]; then
+            PR_ONLY="--pr-only"
+          fi
+          DRY=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+          fi
+          python scripts/release/sync_target_repo.py \
+            --target-id "${{ matrix.target.id }}" \
+            --repo "${{ matrix.target.repo }}" \
+            --source-dir "${{ matrix.target.source_dir }}" \
+            --template-dir "${{ matrix.target.template_dir }}" \
+            --managed-paths "${{ join(matrix.target.sync_policy.managed_paths, ',') }}" \
+            --preserve-paths "${{ join(matrix.target.sync_policy.preserve_paths, ',') }}" \
+            --target-branch "${{ inputs.target_branch }}" \
+            --commit-message "sync(${{ matrix.target.id }}): update from common @ ${{ github.sha }}" \
+            ${PR_ONLY} \
+            ${DRY}

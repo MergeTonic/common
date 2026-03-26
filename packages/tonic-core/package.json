@@ -1,0 +1,36 @@
+{
+  "name": "@mergetonic/core",
+  "version": "0.1.0",
+  "description": "Deterministic merge / conflict engine (CRDT weave) for version control — TypeScript port",
+  "homepage": "https://github.com/mergetonic/common/wiki/Core-TS-%40mergetonic-core",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mergetonic/common.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mergetonic/common/issues"
+  },
+  "license": "Unlicense",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mergetonic": "./dist/cli.js",
+    "merge-tonic": "./dist/cli.js",
+    "tonic-merge": "./dist/cli.js",
+    "mt": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/cli.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}

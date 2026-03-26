@@ -1,0 +1,61 @@
+# Node / JS deps
+node_modules/
+**/node_modules/
+
+# Build output (if not committed by policy)
+dist/
+**/dist/
+
+# Common test/runtime outputs
+coverage/
+*.log
+### stuff
+docs
+!docs/
+!docs/**/*.md
+htmlcov/
+coverage.xml
+*.cover
+*.py,cover
+.dmypy.json
+dmypy.json
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+junit.xml
+pytestdebug.log
+nosetests.xml
+*.lcov
+logs
+.cursor
+
+# Secrets & local env (keep *.example committed as templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editors / merge backups
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+
+# Packaged extension artifact
+*.vsix
+
+# Python type checker / linter local config outputs
+.pyre/
+.pytype/
+
+# Local docs / static site generators
+site/

@@ -1,0 +1,37 @@
+name: CI Extension
+
+on:
+  push:
+    paths:
+      - "extensions/tonic-conflict-resolver/**"
+      - "packages/tonic-core/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-extension.yml"
+  pull_request:
+    paths:
+      - "extensions/tonic-conflict-resolver/**"
+      - "packages/tonic-core/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-extension.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - name: Install monorepo deps
+        run: npm ci
+      - name: Build @mergetonic/core
+        run: npm run build -w @mergetonic/core
+      - name: Compile extension (bundle)
+        run: npm run compile -w merge-conflict-resolver
+      - name: Test extension
+        run: npm run test -w merge-conflict-resolver
+      - name: vsce package dry-run
+        working-directory: extensions/tonic-conflict-resolver
+        run: npx --yes @vscode/vsce package --no-dependencies

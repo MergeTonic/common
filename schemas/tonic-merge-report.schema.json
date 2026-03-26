@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/merge-tonic-report.schema.json",
+  "title": "TonicMergeReport",
+  "type": "object",
+  "required": ["schema", "report_version", "files"],
+  "properties": {
+    "schema": { "const": "merge-tonic-report" },
+    "report_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "pr_title": { "type": "string" },
+    "base_sha": { "type": "string" },
+    "head_sha": { "type": "string" },
+    "base_ref": { "type": "string" },
+    "head_ref": { "type": "string" },
+    "marker_branch": {
+      "type": "string",
+      "description": "Branch pushed by the agent with Tonic marker file contents (when markers_present)."
+    },
+    "marker_branch_commit": {
+      "type": "string",
+      "description": "Commit SHA of the marker snapshot on marker_branch."
+    },
+    "marker_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Repo paths updated on marker_branch with annotated Tonic text."
+    },
+    "merge_report_artifact_name": {
+      "type": "string",
+      "description": "Suggested workflow artifact filename for this JSON (e.g. merge-tonic-report.json)."
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/mergeArtifact" }
+    }
+  },
+  "$defs": {
+    "mergeArtifact": {
+      "type": "object",
+      "required": ["version", "path", "base_sha", "head_sha"],
+      "properties": {
+        "version": { "type": "string" },
+        "path": { "type": "string" },
+        "base_sha": { "type": "string" },
+        "head_sha": { "type": "string" },
+        "left_commit_id": {
+          "type": "string",
+          "description": "Optional left snapshot commit id used for provenance summaries."
+        },
+        "right_commit_id": {
+          "type": "string",
+          "description": "Optional right snapshot commit id used for provenance summaries."
+        },
+        "left_line_count": { "type": "integer" },
+        "right_line_count": { "type": "integer" },
+        "merged_line_count": { "type": "integer" },
+        "markers_present": { "type": "boolean" },
+        "conflict_region_count": { "type": "integer" },
+        "conflict_regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "base_content": { "type": "string" },
+              "left_content": { "type": "string" },
+              "right_content": { "type": "string" },
+              "start_line": { "type": "integer" },
+              "end_line": { "type": "integer" },
+              "conflict_kind": { "type": "string" },
+              "left_commit_ids": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional left-side commit ids associated with this conflict region."
+              },
+              "right_commit_ids": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional right-side commit ids associated with this conflict region."
+              },
+              "suggested_resolution": {
+                "type": "string",
+                "description": "Optional newline-preserving resolved hunk for tooling"
+              },
+              "unified_diff_hint": {
+                "type": "string",
+                "description": "Optional unified diff excerpt for UI"
+              }
+            }
+          }
+        },
+        "annotated_lines": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Full Tonic marker text per file; agents embed this for files with markers_present even at medium PR verbosity."
+        }
+      }
+    }
+  }
+}

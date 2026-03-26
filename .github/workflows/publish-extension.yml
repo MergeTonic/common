@@ -1,0 +1,77 @@
+name: Publish VSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base ref for change detection
+        required: true
+        default: main
+      head_ref:
+        description: Head ref for change detection
+        required: true
+        default: HEAD
+      publish_marketplace:
+        description: Publish extension to VS Code Marketplace
+        required: true
+        type: boolean
+        default: false
+      publish_openvsx:
+        description: Publish extension to OpenVSX
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  detect:
+    uses: ./.github/workflows/detect-release-matrix.yml
+    with:
+      base_ref: ${{ inputs.base_ref }}
+      head_ref: ${{ inputs.head_ref }}
+
+  package:
+    needs: [detect, test]
+    if: contains(needs.detect.outputs.matrix_json, '"id": "vsmt"')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - name: Build VSIX (monorepo)
+        run: |
+          npm ci
+          npm run build -w @mergetonic/core
+          npm run compile -w merge-conflict-resolver
+      - name: Package
+        working-directory: extensions/tonic-conflict-resolver
+        run: npx --yes @vscode/vsce package --no-dependencies
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: merge-conflict-resolver-vsix
+          path: extensions/tonic-conflict-resolver/*.vsix
+      - name: Publish to Visual Studio Marketplace
+        if: inputs.publish_marketplace == true
+        working-directory: extensions/tonic-conflict-resolver
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce publish --no-dependencies
+      - name: Publish to OpenVSX
+        if: inputs.publish_openvsx == true
+        working-directory: extensions/tonic-conflict-resolver
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx publish *.vsix -p "${OVSX_PAT}"
+
+  test:
+    needs: detect
+    if: contains(needs.detect.outputs.matrix_json, '"id": "vsmt"')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run test -w merge-conflict-resolver

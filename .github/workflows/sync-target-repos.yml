@@ -1,0 +1,184 @@
+name: Sync Target Repositories
+
+on:
+  workflow_call:
+    inputs:
+      base_ref:
+        required: true
+        type: string
+      head_ref:
+        required: true
+        type: string
+      target_branch:
+        required: true
+        type: string
+      dry_run:
+        required: true
+        type: boolean
+      sync_mode:
+        required: true
+        type: string
+      verify_published_artifacts:
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base ref for change detection
+        required: true
+        default: main
+      head_ref:
+        description: Head ref for change detection
+        required: true
+        default: HEAD
+      target_branch:
+        description: Target branch in downstream repos
+        required: true
+        default: main
+      dry_run:
+        description: Run without pushing target repos
+        required: true
+        type: boolean
+        default: true
+      sync_mode:
+        description: direct-push or pr-only
+        required: true
+        default: pr-only
+      verify_published_artifacts:
+        description: verify npm/PyPI before action tags
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      target_count: ${{ steps.detect.outputs.target_count }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Detect changed targets
+        id: detect
+        run: |
+          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py --base-ref '${{ inputs.base_ref }}' --head-ref '${{ inputs.head_ref }}')"
+          TARGET_COUNT="$(python -c 'import json,sys; print(json.loads(sys.argv[1])["include_count"])' "${MATRIX_JSON}")"
+          {
+            echo "matrix_json<<EOF"
+            echo "${MATRIX_JSON}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+          echo "target_count=${TARGET_COUNT}" >> "${GITHUB_OUTPUT}"
+
+  sync:
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.target_count != '0'
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.detect.outputs.matrix_json).targets }}
+    concurrency:
+      group: sync-${{ matrix.target.id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip non-sync targets
+        if: matrix.target.sync_repo != true
+        run: echo "Skipping ${{ matrix.target.id }} because it is not repo_sync."
+
+      - name: Collect component versions
+        if: matrix.target.sync_repo == true
+        id: versions
+        run: |
+          python scripts/release/collect_versions.py > versions.json
+          echo "versions=$(cat versions.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Sync component subtree
+        if: matrix.target.sync_repo == true
+        id: sync
+        env:
+          GH_TOKEN: ${{ secrets.TARGET_REPO_BOT_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          DRY=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+          fi
+          PR_ONLY=""
+          if [ "${{ inputs.sync_mode }}" = "pr-only" ]; then
+            PR_ONLY="--pr-only"
+          fi
+          RESULT=".tmp/release-sync-result-${{ matrix.target.id }}.json"
+
+          python scripts/release/sync_target_repo.py \
+            --target-id "${{ matrix.target.id }}" \
+            --repo "${{ matrix.target.repo }}" \
+            --source-dir "${{ matrix.target.source_dir }}" \
+            --template-dir "${{ matrix.target.template_dir }}" \
+            --managed-paths "${{ join(matrix.target.sync_policy.managed_paths, ',') }}" \
+            --preserve-paths "${{ join(matrix.target.sync_policy.preserve_paths, ',') }}" \
+            --target-branch "${{ inputs.target_branch }}" \
+            --commit-message "sync(${{ matrix.target.id }}): update from common @ ${{ github.sha }}" \
+            --result-json "${RESULT}" \
+            ${PR_ONLY} \
+            ${DRY}
+          echo "result_path=${RESULT}" >> "${GITHUB_OUTPUT}"
+          echo "result=$(python -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))))' "${RESULT}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Create release tags in target repo
+        if: matrix.target.sync_repo == true && inputs.dry_run == false && inputs.sync_mode == 'direct-push'
+        env:
+          GH_TOKEN: ${{ secrets.TARGET_REPO_BOT_TOKEN }}
+          TARGET_ID: ${{ matrix.target.id }}
+          VERSIONS: ${{ steps.versions.outputs.versions }}
+          VERIFY_PUBLISHED: ${{ inputs.verify_published_artifacts }}
+        run: |
+          VERSION=$(python -c "import json, os; m={'vsmt':'vsmt','js-action':'js_action','py-action':'py_action','tsmt':'ts_cli','mtpy':'py_cli'}; v=json.loads(os.environ['VERSIONS']); print(v.get(m.get(os.environ['TARGET_ID'], ''), ''))")
+          if [ -z "${VERSION}" ]; then
+            echo "No component version for ${{ matrix.target.id }}; skipping tags."
+            exit 0
+          fi
+          export VERSION
+
+          if [ "${VERIFY_PUBLISHED}" = "true" ] && [ "${TARGET_ID}" = "js-action" ]; then
+            npm view "@mergetonic/github-agent@${VERSION}" version >/dev/null
+          fi
+          if [ "${VERIFY_PUBLISHED}" = "true" ] && [ "${TARGET_ID}" = "py-action" ]; then
+            python -c "import json, os, urllib.request; v=os.environ['VERSION']; d=json.loads(urllib.request.urlopen('https://pypi.org/pypi/mergetonic-github-agent/json', timeout=20).read().decode('utf-8')); assert v in d.get('releases', {}), f'missing release mergetonic-github-agent=={v} on PyPI'"
+          fi
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ matrix.target.repo }}.git" tagrepo
+          cd tagrepo
+          git checkout "${{ inputs.target_branch }}"
+
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            TAG_COMMIT="$(git rev-list -n 1 "v${VERSION}")"
+            HEAD_COMMIT="$(git rev-parse HEAD)"
+            if [ "${TAG_COMMIT}" != "${HEAD_COMMIT}" ]; then
+              echo "Refusing to move immutable tag v${VERSION} from ${TAG_COMMIT} to ${HEAD_COMMIT}"
+              exit 1
+            fi
+          else
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          fi
+
+          MAJOR="$(echo "${VERSION}" | cut -d. -f1)"
+          git tag -f "v${MAJOR}" HEAD
+          git push origin "v${MAJOR}" --force
+
+      - name: Summarize target sync
+        if: matrix.target.sync_repo == true
+        env:
+          RESULT: ${{ steps.sync.outputs.result }}
+        run: |
+          python -c "import json, os; d=json.loads(os.environ['RESULT']); lines=[f\"### ${{ matrix.target.id }}\", f\"- status: `{d.get('status','')}`\", f\"- changed: `{d.get('changed','')}`\"]; lines += [f\"- branch: `{d['branch']}`\"] if d.get('branch') else []; lines += [f\"- pr_url: {d['pr_url']}\"] if d.get('pr_url') else []; lines += [f\"- commit: `{d.get('commit','')}`\"]; print('\\n'.join(lines))" >> "${GITHUB_STEP_SUMMARY}"

@@ -1,0 +1,150 @@
+{
+  "name": "merge-conflict-resolver",
+  "displayName": "Tonic Conflict Resolver",
+  "description": "Tonic merge markers: highlights, CodeLens, conflict explorer, merge editor hooks",
+  "homepage": "https://github.com/mergetonic/common/wiki/VSCode-Extension",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mergetonic/common.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mergetonic/common/issues"
+  },
+  "version": "0.1.0",
+  "publisher": "tonic",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:plaintext",
+    "onLanguage:python",
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tonic.keepLeft",
+        "title": "Tonic: Keep Left"
+      },
+      {
+        "command": "tonic.keepRight",
+        "title": "Tonic: Keep Right"
+      },
+      {
+        "command": "tonic.keepBoth",
+        "title": "Tonic: Keep Both (concatenate regions)"
+      },
+      {
+        "command": "tonic.acceptDeterministic",
+        "title": "Tonic: Accept Deterministic Merge"
+      },
+      {
+        "command": "tonic.openMergeEditor",
+        "title": "Tonic: Open Merge Editor (when available)"
+      },
+      {
+        "command": "tonic.resolveWithAI",
+        "title": "Tonic: Resolve with AI (Cursor Chat)"
+      },
+      {
+        "command": "tonic.resolveWithAgent",
+        "title": "Tonic: Resolve with Agent Provider"
+      },
+      {
+        "command": "tonic.jumpNextConflict",
+        "title": "Tonic: Jump to Next Conflict"
+      },
+      {
+        "command": "tonic.importMergeReport",
+        "title": "Tonic: Import merge report JSON (CI artifact)"
+      },
+      {
+        "command": "tonic.applyMergeReportToWorkspace",
+        "title": "Tonic: Apply merge report markers to workspace file"
+      },
+      {
+        "command": "tonic.gitConflictsToTonicPreview",
+        "title": "Tonic: Preview Git conflicts as Tonic markers (new buffer)"
+      },
+      {
+        "command": "tonic.jumpToLine",
+        "title": "Tonic: Jump to line"
+      }
+    ],
+    "configuration": {
+      "title": "Tonic",
+      "properties": {
+        "tonic.defaultReportGlob": {
+          "type": "string",
+          "default": "**/merge-tonic-report.json",
+          "description": "Glob hint for merge report artifacts (shown in docs; Import command uses native file picker)."
+        },
+        "tonic.agent.provider": {
+          "type": "string",
+          "default": "clipboard",
+          "enum": ["clipboard", "cursor", "copilot", "customCli"],
+          "description": "Provider used by 'Tonic: Resolve with Agent Provider'. clipboard/cursor/copilot copy prompt; customCli executes local command."
+        },
+        "tonic.agent.customCli.command": {
+          "type": "string",
+          "default": "",
+          "description": "Shell command for custom CLI provider. The hydrated prompt is sent on stdin; stdout must be JSON: {\"resolved_lines\": [...], \"rationale\": \"...\"}."
+        },
+        "tonic.agent.customCli.timeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "description": "Timeout in milliseconds for custom CLI provider."
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "tonic.conflicts",
+          "name": "Tonic Conflicts"
+        }
+      ]
+    },
+    "colors": [
+      {
+        "id": "tonic.leftBackground",
+        "description": "Background for left-side conflict regions",
+        "defaults": {
+          "dark": "#3d2a00",
+          "light": "#fff3cd"
+        }
+      },
+      {
+        "id": "tonic.rightBackground",
+        "description": "Background for right-side conflict regions",
+        "defaults": {
+          "dark": "#002d3d",
+          "light": "#cce5ff"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p . && esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=out/extension.js --sourcemap",
+    "watch": "tsc -watch -p .",
+    "test": "npm run compile && node --test out/test/parser.test.js out/test/agentIntegration.test.js out/test/promptTemplates.test.js",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@mergetonic/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.27.4",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
