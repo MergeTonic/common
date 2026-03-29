@@ -1,27 +1,19 @@
 import * as vscode from "vscode";
+import { conflictRegionsToAnnotatedLines } from "@mergetonic/core";
 import {
-  conflictRegionsToAnnotatedLines,
-  type ConflictRegion,
-} from "@mergetonic/core";
+  applyGitMergeReconstructDefaults,
+  readGitMergeDefaultsFromConfig,
+  reportRegionsToCore,
+} from "../gitMergeReconstruct";
 import type { MergeArtifactJson, MergeReportJson } from "../mergeReport";
-
-function regionsJsonToCore(regions: MergeArtifactJson["conflict_regions"]): ConflictRegion[] {
-  return (regions ?? []).map((r) => ({
-    baseContent: r.base_content ?? "",
-    leftContent: r.left_content ?? "",
-    rightContent: r.right_content ?? "",
-    startLine: r.start_line,
-    endLine: r.end_line,
-    conflictKind: r.conflict_kind,
-  }));
-}
 
 function artifactBody(a: MergeArtifactJson): string | null {
   if (a.annotated_lines?.length) {
     return a.annotated_lines.join("\n");
   }
-  const regions = regionsJsonToCore(a.conflict_regions);
-  if (regions.length) {
+  const raw = reportRegionsToCore(a.conflict_regions);
+  if (raw.length) {
+    const regions = applyGitMergeReconstructDefaults(raw, readGitMergeDefaultsFromConfig());
     return conflictRegionsToAnnotatedLines(regions).join("\n");
   }
   return null;

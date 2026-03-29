@@ -38,6 +38,7 @@ exports.rangesForBlock = rangesForBlock;
 exports.decorateDocument = decorateDocument;
 const vscode = __importStar(require("vscode"));
 const core_1 = require("@mergetonic/core");
+const conflictLabelConfig_1 = require("./config/conflictLabelConfig");
 function createDecorationTypes() {
     return {
         left: vscode.window.createTextEditorDecorationType({
@@ -104,7 +105,51 @@ function decorateDocument(editor, types) {
         right.push(...r.right);
         headers.push(...r.headers);
     }
-    editor.setDecorations(types.left, left);
-    editor.setDecorations(types.right, right);
+    const semanticLeft = collectSemanticRanges(doc, blocks, 0);
+    const semanticRight = collectSemanticRanges(doc, blocks, 1);
+    if (semanticLeft.size === 0 && semanticRight.size === 0) {
+        editor.setDecorations(types.left, left);
+        editor.setDecorations(types.right, right);
+    }
+    else {
+        editor.setDecorations(types.left, []);
+        editor.setDecorations(types.right, []);
+        const merged = new Map();
+        for (const [color, ranges] of [...semanticLeft.entries(), ...semanticRight.entries()]) {
+            merged.set(color, [...(merged.get(color) ?? []), ...ranges]);
+        }
+        applySemanticDecorations(editor, merged);
+    }
     editor.setDecorations(types.header, headers);
+}
+const dynamicDecorationTypes = [];
+function collectSemanticRanges(doc, blocks, parity) {
+    const byColor = new Map();
+    for (const block of blocks) {
+        const rangeSet = rangesForBlock(doc, block);
+        const ranges = parity === 0 ? rangeSet.left : rangeSet.right;
+        if (ranges.length === 0) {
+            continue;
+        }
+        const segment = block.segments.find((_, idx) => idx % 2 === parity);
+        const color = (0, conflictLabelConfig_1.semanticColorForLabel)(segment?.label ?? block.kind);
+        if (!color) {
+            continue;
+        }
+        byColor.set(color, [...(byColor.get(color) ?? []), ...ranges]);
+    }
+    return byColor;
+}
+function applySemanticDecorations(editor, byColor) {
+    while (dynamicDecorationTypes.length > 0) {
+        dynamicDecorationTypes.pop()?.dispose();
+    }
+    for (const [color, ranges] of byColor.entries()) {
+        const type = vscode.window.createTextEditorDecorationType({
+            backgroundColor: color,
+            isWholeLine: true,
+        });
+        dynamicDecorationTypes.push(type);
+        editor.setDecorations(type, ranges);
+    }
 }

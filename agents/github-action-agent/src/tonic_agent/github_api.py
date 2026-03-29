@@ -195,3 +195,33 @@ def upsert_issue_comment(
             if isinstance(cid, int):
                 return update_issue_comment(owner, repo, cid, body, token)
     return post_issue_comment(owner, repo, issue_number, body, token)
+
+
+def create_pull_request(
+    owner: str,
+    repo: str,
+    token: str,
+    *,
+    title: str,
+    head: str,
+    base: str,
+    body: str,
+) -> tuple[int, str]:
+    api = _api_root()
+    url = f"{api}/repos/{owner}/{repo}/pulls"
+    data = _request(
+        "POST",
+        url,
+        token,
+        {"title": title, "head": head, "base": base, "body": body},
+    )
+    if not isinstance(data, dict):
+        raise RuntimeError("create_pull_request: invalid response payload")
+    number = data.get("number")
+    head_obj = data.get("head")
+    if not isinstance(number, int) or not isinstance(head_obj, dict):
+        raise RuntimeError("create_pull_request: missing number/head")
+    head_sha = head_obj.get("sha")
+    if not isinstance(head_sha, str) or not head_sha:
+        raise RuntimeError("create_pull_request: missing head sha")
+    return number, head_sha

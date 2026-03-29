@@ -1,5 +1,5 @@
-# Runs the Tonic GitHub Action on pull requests: hydrates base/head file blobs,
-# runs weave merge, posts/upserts PR comments and uploads a JSON report artifact.
+# Runs the Tonic GitHub Action on pull requests: default merge_engine=git performs
+# isolated git merge hydration, then posts/upserts PR comments and uploads a JSON report artifact.
 #
 # Fork PRs: secrets.GITHUB_TOKEN has limited permissions on forks; use a PAT with
 # pull-requests: write on the target repo if you need comments on external PRs.
@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   tonic:
+    if: github.actor != 'github-actions[bot]' && !startsWith(github.head_ref, 'sync/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -28,6 +29,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           comment_mode: all
           verbosity: medium
+          merge_engine: git
           hydrate_mode: pr-diff
           report_path: merge-tonic-report.json
           enable_ai: "false"
@@ -62,3 +64,11 @@ jobs:
         with:
           name: merge-tonic-report
           path: ${{ steps.tonic.outputs.report_path }}
+
+  tonic_skip_notice:
+    if: github.actor == 'github-actions[bot]' || startsWith(github.head_ref, 'sync/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip reason
+        run: |
+          echo "Skipping Tonic PR agent for bot/sync PR context."

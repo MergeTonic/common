@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { type ConflictBlock, conflictSummary, parseTonicConflicts } from "@mergetonic/core";
+import { conflictSummary, parseConflictLabel, parseTonicConflicts } from "@mergetonic/core";
 
 export class ConflictTreeProvider implements vscode.TreeDataProvider<ConflictItem> {
   private _doc: vscode.TextDocument | undefined;
@@ -23,10 +23,17 @@ export class ConflictTreeProvider implements vscode.TreeDataProvider<ConflictIte
       return [];
     }
     const blocks = parseTonicConflicts(this._doc.getText());
-    return blocks.map(
-      (b, i) =>
-        new ConflictItem(conflictSummary(b), b.startLine, i, vscode.TreeItemCollapsibleState.None)
-    );
+    return blocks.map((b, i) => {
+      const meta = parseConflictLabel(b.kind);
+      const author = meta.tags.author ? ` | author:${meta.tags.author}` : "";
+      const intent = meta.tags.intent ? ` | intent:${meta.tags.intent}` : "";
+      return new ConflictItem(
+        `${conflictSummary(b)}${author}${intent}`,
+        b.startLine,
+        i,
+        vscode.TreeItemCollapsibleState.None,
+      );
+    });
   }
 }
 

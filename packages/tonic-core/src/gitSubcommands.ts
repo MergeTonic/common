@@ -1,9 +1,22 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { gitExec, gitRequireOk } from "./gitExec";
-import { annotatedToConflictFile, mergeSnapshots } from "./mergeUtils";
+import type { AuthorMode } from "./authorAliasResolver";
+import { createDefaultGitAuthorProbe, resolveAuthorAliasForSide } from "./authorAliasResolver";
 import { mergeReportDict, type MergeArtifactJson } from "./cliReport";
+import { gitExec, gitRequireOk } from "./gitExec";
+import {
+  DEFAULT_INTENT_PROFILE_PATH,
+  loadIntentProfile,
+  parseIntentPair,
+  promptIntentPairInteractive,
+  saveIntentProfile,
+} from "./intentInteractive";
+import { annotatedToConflictFile, hydrateTonicAnnotatedAuthorIntent, mergeSnapshots } from "./mergeUtils";
+import {
+  DEFAULT_GIT_MERGE_LEFT_INTENT,
+  DEFAULT_GIT_MERGE_RIGHT_INTENT,
+} from "./markerInterop";
 
 function normLines(s: string): string[] {
   const lines = s.split(/\r?\n/);
@@ -144,7 +157,99 @@ function currentBranch(repoRoot: string): string {
   return b;
 }
 
-export function gitCmdCompare(repoRoot: string, argv: string[]): number {
+function parseAuthorMode(raw: string): AuthorMode {
+  if (raw === "human" || raw === "ref") {
+    return raw;
+  }
+  return "base-head";
+}
+
+async function resolveCompareMaterializeHydration(
+  repoRoot: string,
+  m: ReturnType<typeof parseArgs>,
+  leftRef: string,
+  rightRef: string,
+): Promise<{ leftAuthor: string; rightAuthor: string; leftIntent: string; rightIntent: string }> {
+  const authorMode = parseAuthorMode(getOpt(m, "author_mode", "base-head"));
+  const explicitL = getOpt(m, "author_alias_left", "");
+  const explicitR = getOpt(m, "author_alias_right", "");
+  const gitProbe = authorMode === "human" ? createDefaultGitAuthorProbe(repoRoot) : undefined;
+
+  const leftAuthor = resolveAuthorAliasForSide("left", {
+    repoRoot,
+    mode: authorMode,
+    leftRef,
+    rightRef,
+    explicitLeft: explicitL || undefined,
+    explicitRight: explicitR || undefined,
+    gitProbe,
+  });
+  const rightAuthor = resolveAuthorAliasForSide("right", {
+    repoRoot,
+    mode: authorMode,
+    leftRef,
+    rightRef,
+    explicitLeft: explicitL || undefined,
+    explicitRight: explicitR || undefined,
+    gitProbe,
+  });
+
+  let leftIntent = DEFAULT_GIT_MERGE_LEFT_INTENT;
+  let rightIntent = DEFAULT_GIT_MERGE_RIGHT_INTENT;
+
+  const profilePath =
+    getOpt(m, "intent_profile", "").trim() || path.join(repoRoot, DEFAULT_INTENT_PROFILE_PATH);
+  const prof = loadIntentProfile(profilePath);
+  if (prof?.leftIntent?.trim()) {
+    leftIntent = prof.leftIntent.trim();
+  }
+  if (prof?.rightIntent?.trim()) {
+    rightIntent = prof.rightIntent.trim();
+  }
+
+  const ip = parseIntentPair(getOpt(m, "intent_pair", ""));
+  if (ip) {
+    leftIntent = ip.left;
+    rightIntent = ip.right;
+  }
+
+  const interactive = m.flags.has("interactive_intents") && !m.flags.has("no_interactive");
+  if (interactive) {
+    const ans = await promptIntentPairInteractive({
+      defaultLeft: leftIntent,
+      defaultRight: rightIntent,
+    });
+    leftIntent = ans.leftIntent;
+    rightIntent = ans.rightIntent;
+  }
+  if (m.flags.has("save_intent_profile")) {
+    saveIntentProfile(profilePath, { version: 1, leftIntent, rightIntent });
+  }
+
+  return { leftAuthor, rightAuthor, leftIntent, rightIntent };
+}
+
+export async function gitCmdHydrateIntents(repoRoot: string, argv: string[]): Promise<number> {
+  const m = parseArgs(argv);
+  const profilePath =
+    getOpt(m, "intent_profile", "").trim() || path.join(repoRoot, DEFAULT_INTENT_PROFILE_PATH);
+  const defaults = loadIntentProfile(profilePath);
+  const pair = await promptIntentPairInteractive({
+    defaultLeft: defaults?.leftIntent ?? DEFAULT_GIT_MERGE_LEFT_INTENT,
+    defaultRight: defaults?.rightIntent ?? DEFAULT_GIT_MERGE_RIGHT_INTENT,
+  });
+  saveIntentProfile(profilePath, { version: 1, leftIntent: pair.leftIntent, rightIntent: pair.rightIntent });
+  console.log(
+    JSON.stringify(
+      { ok: true, profile_path: profilePath, left_intent: pair.leftIntent, right_intent: pair.rightIntent },
+      null,
+      2,
+    ),
+  );
+  return 0;
+}
+
+export async function gitCmdCompare(repoRoot: string, argv: string[]): Promise<number> {
   const m = parseArgs(argv);
   const remote = getOpt(m, "remote", "origin");
   const baseBranch = getOpt(m, "base_branch", "main");
@@ -219,7 +324,12 @@ export function gitCmdCompare(repoRoot: string, argv: string[]): number {
     const [merged, annotated] = mergeSnapshots(left, right);
     const cfPath = rel.replace(/\\/g, "/");
     const markersPresent = annotated.some((l) => l.startsWith("<<<<<<< begin"));
-    const cf = annotatedToConflictFile(cfPath, annotated);
+    let annotatedForReport = annotated;
+    if (markersPresent) {
+      const h = await resolveCompareMaterializeHydration(repoRoot, m, leftRef, rightRef);
+      annotatedForReport = hydrateTonicAnnotatedAuthorIntent(annotated, h);
+    }
+    const cf = annotatedToConflictFile(cfPath, annotatedForReport);
     artifacts.push({
       version: "1",
       path: cfPath,
@@ -247,11 +357,11 @@ export function gitCmdCompare(repoRoot: string, argv: string[]): number {
       }),
       left_commit_id: blame ? leftSha : undefined,
       right_commit_id: blame ? rightSha : undefined,
-      annotated_lines: markersPresent ? annotated : undefined,
+      annotated_lines: markersPresent ? annotatedForReport : undefined,
     });
     if (write && !dryRun) {
       const abs = path.join(repoRoot, rel);
-      writeAnnotatedToWorkingFile(abs, annotated, { backup, atomic });
+      writeAnnotatedToWorkingFile(abs, annotatedForReport, { backup, atomic });
     }
   }
 
@@ -283,7 +393,7 @@ export function gitCmdCompare(repoRoot: string, argv: string[]): number {
   return 0;
 }
 
-export function gitCmdMaterialize(repoRoot: string, argv: string[]): number {
+export async function gitCmdMaterialize(repoRoot: string, argv: string[]): Promise<number> {
   const m = parseArgs(argv);
   const dryRun = m.flags.has("dry_run");
   const write = m.flags.has("write");
@@ -318,9 +428,15 @@ export function gitCmdMaterialize(repoRoot: string, argv: string[]): number {
     const right = normLines(rs.stdout);
     const [, annotated] = mergeSnapshots(left, right);
     void blame;
+    const markersPresent = annotated.some((l) => l.startsWith("<<<<<<< begin"));
+    let outAnnotated = annotated;
+    if (markersPresent) {
+      const h = await resolveCompareMaterializeHydration(repoRoot, m, "", "");
+      outAnnotated = hydrateTonicAnnotatedAuthorIntent(annotated, h);
+    }
     if (write && !dryRun) {
       const abs = path.join(repoRoot, rel);
-      writeAnnotatedToWorkingFile(abs, annotated, { backup, atomic });
+      writeAnnotatedToWorkingFile(abs, outAnnotated, { backup, atomic });
     }
   }
 
@@ -419,17 +535,20 @@ export function gitCmdWorktree(repoRoot: string, argv: string[]): number {
   return 1;
 }
 
-export function gitMain(repoRoot: string, argv: string[]): number {
+export async function gitMain(repoRoot: string, argv: string[]): Promise<number> {
   const sub = argv[0];
   const rest = argv.slice(1);
   if (sub === "fetch" || sub === "f") {
     return gitCmdFetch(repoRoot, rest);
   }
   if (sub === "compare" || sub === "c") {
-    return gitCmdCompare(repoRoot, rest);
+    return await gitCmdCompare(repoRoot, rest);
   }
   if (sub === "materialize" || sub === "from-index" || sub === "mat" || sub === "fi") {
-    return gitCmdMaterialize(repoRoot, rest);
+    return await gitCmdMaterialize(repoRoot, rest);
+  }
+  if (sub === "hydrate-intents" || sub === "hi") {
+    return await gitCmdHydrateIntents(repoRoot, rest);
   }
   if (sub === "merge" || sub === "m") {
     return gitCmdMerge(repoRoot, rest);
@@ -438,7 +557,7 @@ export function gitMain(repoRoot: string, argv: string[]): number {
     return gitCmdWorktree(repoRoot, rest);
   }
   console.error(
-    "Usage: merge-tonic git fetch|compare|materialize|from-index|merge|worktree ... (use --repo for root)",
+    "Usage: merge-tonic git fetch|compare|materialize|from-index|hydrate-intents|merge|worktree ... (use --repo for root)",
   );
   return 1;
 }

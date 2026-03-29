@@ -4,9 +4,10 @@ Highlights **Tonic** conflict markers (`<<<<<<< begin …`, `======= begin …`,
 
 ## Deterministic resolution (same semantics as the PR agent heuristic)
 
-- **Prefer head (deterministic)** (CodeLens) / **Tonic: Keep Right** — matches the GitHub agent’s **prefer-head** inline suggestion (`heuristic_resolved_lines`): keep the **right (head)** hunk when both sides exist.
+- **Keep Right** (CodeLens) / **Tonic: Keep Right** — matches the GitHub agent’s **prefer-head** inline suggestion (`heuristic_resolved_lines`): keep the **right (head)** hunk when both sides exist.
 - **Keep Left** — keep the **base** hunk.
 - **Keep Both** — concatenate side contents (ordered segments).
+- **Resolve with AI** — copies a hydrated prompt for Cursor / VS Code chat.
 - After resolving, **save** the document and commit via the built-in **Source Control** view (the extension does not run `git commit`).
 
 ## CI merge report import
@@ -17,6 +18,34 @@ When report artifacts include optional blame metadata (`left_commit_id` / `right
 **Tonic: Apply merge report markers to workspace file** writes `annotated_lines` (or reconstructed markers) to the workspace path from the report, with a `.tonic.bak` backup when the file already exists.
 
 Settings: **`tonic.defaultReportGlob`** — hint for artifact location. The importer can **Re-open last report file** per workspace.
+
+**Git-merge reconstruction defaults** (when opening legacy reports that only have `conflict_regions` without `annotated_lines`): **`tonic.gitMergeIntent.leftDefault`** / **`tonic.gitMergeIntent.rightDefault`** fill missing intent tags; **`tonic.gitMergeAuthor.leftDefault`** / **`tonic.gitMergeAuthor.rightDefault`** optionally override author tags (otherwise `base` / `head`). **`tonic.gitMergeAuthor.preferHumanAlias`** is reserved for future use.
+
+## Semantic highlight configuration (JSON)
+
+Semantic highlighting can now be driven by conflict labels/tags.
+
+- `tonic.highlight.enableSemantic` toggles semantic highlight mode.
+- `tonic.highlight.defaultPalette` selects a default preset (`tonic` or `contrast`).
+- `tonic.conflictLabelConfig` adds optional custom JSON rules.
+
+Example:
+
+```json
+{
+  "tonic.highlight.enableSemantic": true,
+  "tonic.highlight.defaultPalette": "tonic",
+  "tonic.conflictLabelConfig": {
+    "rules": [
+      {
+        "kind": "added right",
+        "tags": { "intent": "security" },
+        "backgroundColor": "#ffd1d1"
+      }
+    ]
+  }
+}
+```
 
 ## Git conflict markers
 
@@ -55,4 +84,4 @@ npm test
 npx --yes @vscode/vsce package --no-dependencies
 ```
 
-The marketplace `name` is `merge-conflict-resolver` (publisher `tonic`).
+The marketplace `name` is `merge-conflict-resolver` (publisher `tonic-ai`).

@@ -74,10 +74,48 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
           echo "target_count=${TARGET_COUNT}" >> "${GITHUB_OUTPUT}"
 
-  sync:
+  policy_contract:
     runs-on: ubuntu-latest
     needs: detect
     if: needs.detect.outputs.target_count != '0'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate seeded repository policy workflow contract
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix_json }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          matrix = json.loads(os.environ["MATRIX"])
+          required = {
+              ".github/workflows/contributor-policy-gate.yml",
+              ".github/workflows/accept-contributor-terms.yml",
+          }
+          missing = []
+          for target in matrix.get("targets", []):
+              if not target.get("sync_repo", False):
+                  continue
+              template_dir = pathlib.Path(target.get("template_dir", ""))
+              if not template_dir:
+                  continue
+              for rel in required:
+                  path = template_dir / rel
+                  if not path.exists():
+                      missing.append(f"{target.get('id')}: missing {path}")
+          if missing:
+              print("\n".join(missing))
+              sys.exit(1)
+          print("policy workflow contract validated")
+          PY
+
+  sync:
+    runs-on: ubuntu-latest
+    needs: [detect, policy_contract]
+    if: needs.detect.outputs.target_count != '0' && !startsWith(inputs.head_ref, 'sync/')
     permissions:
       contents: write
       pull-requests: write
@@ -86,7 +124,7 @@ jobs:
       matrix:
         target: ${{ fromJson(needs.detect.outputs.matrix_json).targets }}
     concurrency:
-      group: sync-${{ matrix.target.id }}
+      group: sync-${{ matrix.target.id }}-${{ inputs.target_branch }}-${{ inputs.sync_mode }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6

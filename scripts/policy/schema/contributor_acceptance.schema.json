@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContributorAcceptanceRegistry",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "policy_version",
+    "last_updated_at",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "last_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "github_login",
+          "accepted_contributing_at",
+          "accepted_license_at",
+          "accepted_policy_version",
+          "accepted_via",
+          "source_repo",
+          "source_pr",
+          "active"
+        ],
+        "properties": {
+          "github_login": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accepted_contributing_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accepted_license_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accepted_policy_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accepted_via": {
+            "type": "string",
+            "enum": [
+              "maintainer_seed",
+              "pr_comment_gate",
+              "api"
+            ]
+          },
+          "source_repo": {
+            "type": "string"
+          },
+          "source_pr": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

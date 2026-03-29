@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "agents/github-action-agent-node/**"
+      - "agents/shared-tonic-ai-prompts/**"
+      - "scripts/sync_agent_ai_prompts.py"
       - "packages/tonic-core/**"
       - "package.json"
       - "package-lock.json"
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - "agents/github-action-agent-node/**"
+      - "agents/shared-tonic-ai-prompts/**"
+      - "scripts/sync_agent_ai_prompts.py"
       - "packages/tonic-core/**"
       - "package.json"
       - "package-lock.json"
@@ -24,6 +28,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - run: npm ci
+      - run: python scripts/sync_agent_ai_prompts.py
       - run: npm run build -w @mergetonic/core
       - run: npm run test -w @mergetonic/github-agent

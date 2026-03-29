@@ -26,17 +26,21 @@ jobs:
 
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "js-action"') && inputs.publish_npm == true
+    if: contains(needs.detect.outputs.matrix_json, '"id": "js-action"') && inputs.publish_npm == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
+      - run: python scripts/sync_agent_ai_prompts.py
       - run: npm run build -w @mergetonic/core
       - run: npm run build -w @mergetonic/github-agent
       - name: Smoke run (local demo)
@@ -53,8 +57,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
       - run: npm ci
+      - run: python scripts/sync_agent_ai_prompts.py
       - run: npm run test -w @mergetonic/github-agent

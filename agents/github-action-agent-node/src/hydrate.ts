@@ -1,4 +1,6 @@
 import { fetchUrlTextAuthenticated, getGitBlobText, githubGetJson } from "./githubApi";
+import type { GitMergeHydrationOptions } from "@mergetonic/core";
+import { hydrateGitMerge, type GitHydratePair } from "./hydrateGitMerge";
 
 const BINARY = new Set([
   ".png",
@@ -149,10 +151,20 @@ function lines(text: string | null | undefined): string[] {
   if (!text) {
     return [];
   }
-  return text.split(/\r?\n/);
+  const out = text.split(/\r?\n/);
+  if (out.length > 0 && out[out.length - 1] === "") {
+    out.pop();
+  }
+  return out;
 }
 
-export type HydratePair = { leftLines: string[]; rightLines: string[]; status: string };
+export type HydratePair = {
+  leftLines: string[];
+  rightLines: string[];
+  status: string;
+  gitAnnotatedLines?: string[];
+  mergedLines?: string[];
+};
 
 export async function hydratePrFiles(
   owner: string,
@@ -162,7 +174,18 @@ export async function hydratePrFiles(
   token: string,
   mode: string,
   maxFiles: number,
+  gitMergeHydration?: GitMergeHydrationOptions,
 ): Promise<Record<string, HydratePair>> {
+  if (mode === "git-merge") {
+    const workspace = process.env.TONIC_AGENT_ISOLATED_WORKSPACE || process.env.GITHUB_WORKSPACE || process.cwd();
+    return hydrateGitMerge({
+      workspace,
+      baseSha,
+      headSha,
+      maxFiles,
+      gitMergeHydration,
+    }) as Record<string, GitHydratePair>;
+  }
   const out: Record<string, HydratePair> = {};
   if (mode === "symmetric-union") {
     const baseTree = await listTreeBlobShas(owner, repo, baseSha, token);

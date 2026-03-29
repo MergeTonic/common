@@ -1,0 +1,22 @@
+name: Branch Protection Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Verify required branch protection checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.POLICY_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          REQUIRED_CHECK: contributor-policy-gate
+        run: |
+          python scripts/policy/audit_branch_protection.py

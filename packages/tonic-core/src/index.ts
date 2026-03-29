@@ -22,7 +22,18 @@ export {
   parseTonicConflictsWithDiagnostics,
   conflictSummary,
   type ConflictBlock,
+  type ConflictSegment,
 } from "./conflictParser";
+export {
+  parseConflictLabel,
+  formatConflictLabel,
+  addTagToConflictLabel,
+  removeTagFromConflictLabel,
+  updateTagInConflictLabel,
+  normalizeConflictLabel,
+  sanitizeAuthorTagToken,
+  type ConflictLabelMetadata,
+} from "./markerLabel";
 export {
   parseGitConflicts,
   parseGitConflictsWithDiagnostics,
@@ -31,7 +42,26 @@ export {
 export {
   gitConflictBlocksToConflictRegions,
   gitConflictBlocksToTonicAnnotatedPreview,
+  DEFAULT_GIT_MERGE_LEFT_INTENT,
+  DEFAULT_GIT_MERGE_RIGHT_INTENT,
+  type GitMergeHydrationOptions,
 } from "./markerInterop";
+export {
+  resolveAuthorAliasForSide,
+  humanAliasFromGitStdout,
+  parseGitAuthorNameEmail,
+  createDefaultGitAuthorProbe,
+  type AuthorMode,
+  type ResolveAuthorAliasParams,
+} from "./authorAliasResolver";
+export {
+  loadIntentProfile,
+  saveIntentProfile,
+  parseIntentPair,
+  promptIntentPairInteractive,
+  DEFAULT_INTENT_PROFILE_PATH,
+  type IntentProfileV1,
+} from "./intentInteractive";
 export {
   mergeSnapshots,
   annotatedToConflictFile,
@@ -41,6 +71,8 @@ export {
   suggestionLineCountOk,
   applyTonicResolutions,
   applyTonicHeuristic,
+  hydrateTonicAnnotatedAuthorIntent,
   type ConflictFile,
   type ConflictRegion,
+  type TonicAuthorIntentHydration,
 } from "./mergeUtils";

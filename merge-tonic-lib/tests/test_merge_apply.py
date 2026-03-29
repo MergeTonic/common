@@ -68,6 +68,22 @@ def test_apply_tonic_resolutions_two_regions() -> None:
     assert out == ["1", "mid", "2"]
 
 
+def test_annotated_to_conflict_file_git_merge_per_side_labels() -> None:
+    ann = [
+        "<<<<<<< begin git merge | author=base | intent=preserve_base",
+        "L",
+        "======= begin git merge | author=head | intent=prefer_head",
+        "R",
+        ">>>>>>> end conflict",
+    ]
+    cf = annotated_to_conflict_file("_", ann)
+    assert len(cf.conflicts) == 1
+    c0 = cf.conflicts[0]
+    assert "author=base" in c0.marker_label_begin
+    assert "author=head" in c0.marker_label_mid
+    assert c0.conflict_tags.get("intent") == "preserve_base"
+
+
 def test_apply_tonic_heuristic_from_merge() -> None:
     left = ["line"]
     right = ["other"]

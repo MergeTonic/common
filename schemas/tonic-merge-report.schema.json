@@ -68,6 +68,23 @@
               "start_line": { "type": "integer" },
               "end_line": { "type": "integer" },
               "conflict_kind": { "type": "string" },
+              "conflict_base_kind": {
+                "type": "string",
+                "description": "Normalized base kind parsed from conflict_kind (e.g. git merge)."
+              },
+              "conflict_tags": {
+                "type": "object",
+                "additionalProperties": { "type": "string" },
+                "description": "Key=value tags from Tonic marker labels. Git-merge hydration uses author, intent on the left segment and author_right, intent_right on the right segment."
+              },
+              "marker_label_begin": {
+                "type": "string",
+                "description": "Full label after <<<<<<< begin when it differs from conflict_kind-derived text (per-side author/intent)."
+              },
+              "marker_label_mid": {
+                "type": "string",
+                "description": "Full label after ======= begin when it differs from the begin label."
+              },
               "left_commit_ids": {
                 "type": "array",
                 "items": { "type": "string" },

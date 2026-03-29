@@ -17,21 +17,32 @@ class ConflictRegion:
     start_line: int
     end_line: int
     conflict_kind: str = ""
+    conflict_base_kind: str = ""
+    conflict_tags: dict[str, str] = field(default_factory=dict)
     left_commit_ids: list[str] = field(default_factory=list)
     right_commit_ids: list[str] = field(default_factory=list)
+    marker_label_begin: str = ""
+    marker_label_mid: str = ""
     """Semantic label from Tonic markers, e.g. 'added left'."""
 
     def to_dict(self) -> dict:
-        return {
+        d: dict = {
             "base_content": self.base_content,
             "left_content": self.left_content,
             "right_content": self.right_content,
             "start_line": self.start_line,
             "end_line": self.end_line,
             "conflict_kind": self.conflict_kind,
+            "conflict_base_kind": self.conflict_base_kind,
+            "conflict_tags": self.conflict_tags,
             "left_commit_ids": self.left_commit_ids,
             "right_commit_ids": self.right_commit_ids,
         }
+        if self.marker_label_begin:
+            d["marker_label_begin"] = self.marker_label_begin
+        if self.marker_label_mid:
+            d["marker_label_mid"] = self.marker_label_mid
+        return d
 
 
 @dataclass

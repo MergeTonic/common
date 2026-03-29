@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from tonic_agent import hydrate
 from tonic_agent.hydrate import decode_file_content, fetch_file_text
+from tonic_agent.hydrate_git_merge import hydrate_git_merge
 
 
 def test_decode_file_content_base64():
@@ -59,3 +60,73 @@ def test_get_git_blob_text_decodes():
     b64 = base64.b64encode(raw).decode("ascii")
     with patch.object(github_api, "get_json", return_value={"encoding": "base64", "content": b64}):
         assert github_api.get_git_blob_text("o", "r", "sha", "t") == "file-bytes"
+
+
+def test_hydrate_git_merge_reads_unmerged(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(workspace: str, args: list[str], *, allow_fail: bool = False) -> str:
+        calls.append(args)
+        if args[:3] == ["diff", "--name-only", "--diff-filter"]:
+            return "a.txt\n"
+        if args[0] == "show" and args[1].startswith(":2:"):
+            return "left\n"
+        if args[0] == "show" and args[1].startswith(":3:"):
+            return "right\n"
+        return ""
+
+    class DummyPath:
+        def __init__(self, _p: str):
+            pass
+
+        def resolve(self):
+            return self
+
+        def __truediv__(self, _other: str):
+            return self
+
+        def exists(self):
+            return True
+
+        def read_text(self, encoding="utf-8", errors=None):
+            return "<<<<<<< ours\nleft\n=======\nright\n>>>>>>> theirs\n"
+
+    monkeypatch.setattr("tonic_agent.hydrate_git_merge._run_git", fake_run)
+    monkeypatch.setattr("tonic_agent.hydrate_git_merge.Path", lambda *_: DummyPath("x"))
+    out = hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
+    assert "a.txt" in out
+    assert out["a.txt"]["status"] == "unmerged"
+    assert out["a.txt"]["annotated_lines"][0].startswith("<<<<<<< begin git merge")
+    assert "author=base" in out["a.txt"]["annotated_lines"][0]
+    assert "intent=preserve_base" in out["a.txt"]["annotated_lines"][0]
+    assert any(a[:2] == ["checkout", "-f"] for a in calls)
+
+
+def test_hydrate_git_merge_fails_non_conflict_merge_error(monkeypatch):
+    def fake_run(workspace: str, args: list[str], *, allow_fail: bool = False) -> str:
+        if args[:2] == ["merge", "--no-ff"]:
+            return "fatal: merge failed"
+        if args[:3] == ["diff", "--name-only", "--diff-filter"]:
+            return ""
+        return ""
+
+    monkeypatch.setattr("tonic_agent.hydrate_git_merge._run_git", fake_run)
+    with patch.dict("os.environ", {"GITHUB_ACTIONS": "false"}, clear=False):
+        try:
+            hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
+            raise AssertionError("expected RuntimeError")
+        except RuntimeError as exc:
+            assert "failed without unmerged files" in str(exc)
+
+
+def test_hydrate_git_merge_allows_clean_merge(monkeypatch):
+    def fake_run(workspace: str, args: list[str], *, allow_fail: bool = False) -> str:
+        if args[:2] == ["merge", "--no-ff"]:
+            return "Already up to date."
+        if args[:3] == ["diff", "--name-only", "--diff-filter"]:
+            return ""
+        return ""
+
+    monkeypatch.setattr("tonic_agent.hydrate_git_merge._run_git", fake_run)
+    out = hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
+    assert out == {}

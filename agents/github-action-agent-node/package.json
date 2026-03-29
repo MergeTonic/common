@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/mergetonic/common/issues"
   },
-  "license": "Unlicense",
+  "license": "GPL-2.0-only",
   "type": "commonjs",
   "main": "./dist/index.js",
   "bin": {
@@ -19,12 +19,14 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p .",
     "start": "node dist/index.js",
-    "test": "npm run build && node --test dist/test/agent.test.js dist/test/headLineMap.test.js",
+    "pretest": "cd ../.. && python scripts/sync_agent_ai_prompts.py",
+    "test": "npm run build && node --test dist/test/agent.test.js dist/test/headLineMap.test.js dist/test/promptEngineering.test.js dist/test/aiRetry.test.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

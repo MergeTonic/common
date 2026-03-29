@@ -11,7 +11,8 @@
     "url": "https://github.com/mergetonic/common/issues"
   },
   "version": "0.1.0",
-  "publisher": "tonic",
+  "license": "GPL-2.0-only",
+  "publisher": "tonic-ai",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -101,6 +102,49 @@
           "default": 30000,
           "minimum": 1000,
           "description": "Timeout in milliseconds for custom CLI provider."
+        },
+        "tonic.highlight.enableSemantic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable semantic highlight colors based on conflict labels and optional tags."
+        },
+        "tonic.highlight.defaultPalette": {
+          "type": "string",
+          "default": "tonic",
+          "enum": ["tonic", "contrast"],
+          "description": "Built-in palette used when semantic highlights are enabled."
+        },
+        "tonic.conflictLabelConfig": {
+          "type": "object",
+          "default": {
+            "rules": []
+          },
+          "description": "Optional JSON rules for semantic label/tag-based highlighting. Example: {\"rules\":[{\"kind\":\"added right\",\"tags\":{\"intent\":\"security\"},\"backgroundColor\":\"#ffd1d1\"}]}"
+        },
+        "tonic.gitMergeIntent.leftDefault": {
+          "type": "string",
+          "default": "preserve_base",
+          "description": "Default left (base) intent tag when reconstructing legacy git-merge regions without tags."
+        },
+        "tonic.gitMergeIntent.rightDefault": {
+          "type": "string",
+          "default": "prefer_head",
+          "description": "Default right (head) intent tag when reconstructing legacy git-merge regions without tags."
+        },
+        "tonic.gitMergeAuthor.leftDefault": {
+          "type": "string",
+          "default": "",
+          "description": "Optional default left author tag for reconstructed git-merge markers (empty uses \"base\")."
+        },
+        "tonic.gitMergeAuthor.rightDefault": {
+          "type": "string",
+          "default": "",
+          "description": "Optional default right author tag for reconstructed git-merge markers (empty uses \"head\")."
+        },
+        "tonic.gitMergeAuthor.preferHumanAlias": {
+          "type": "boolean",
+          "default": false,
+          "description": "Reserved for future use: prefer human-readable aliases when reconstructing from minimal report rows."
         }
       }
     },

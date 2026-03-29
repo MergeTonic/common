@@ -633,6 +633,82 @@ var require_core = __commonJS({
   }
 });
 
+// ../../packages/tonic-core/dist/markerLabel.js
+var require_markerLabel = __commonJS({
+  "../../packages/tonic-core/dist/markerLabel.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.parseConflictLabel = parseConflictLabel5;
+    exports2.formatConflictLabel = formatConflictLabel2;
+    exports2.addTagToConflictLabel = addTagToConflictLabel;
+    exports2.updateTagInConflictLabel = updateTagInConflictLabel;
+    exports2.removeTagFromConflictLabel = removeTagFromConflictLabel;
+    exports2.normalizeConflictLabel = normalizeConflictLabel;
+    exports2.sanitizeAuthorTagToken = sanitizeAuthorTagToken;
+    function cleanToken(token) {
+      return token.trim();
+    }
+    function parseConflictLabel5(rawLabel) {
+      const raw = rawLabel.trim();
+      if (!raw) {
+        return { raw: "", baseKind: "", tags: {} };
+      }
+      const parts = raw.split("|").map(cleanToken).filter(Boolean);
+      if (parts.length === 0) {
+        return { raw, baseKind: raw, tags: {} };
+      }
+      const baseKind = parts[0] ?? raw;
+      const tags = {};
+      for (const part of parts.slice(1)) {
+        const idx = part.indexOf("=");
+        if (idx <= 0) {
+          continue;
+        }
+        const key = part.slice(0, idx).trim();
+        const value = part.slice(idx + 1).trim();
+        if (!key) {
+          continue;
+        }
+        tags[key] = value;
+      }
+      return { raw, baseKind, tags };
+    }
+    function formatConflictLabel2(baseKind, tags = {}) {
+      const kind = baseKind.trim();
+      const entries = Object.entries(tags).filter(([key]) => key.trim().length > 0).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key.trim()}=${String(value).trim()}`);
+      if (entries.length === 0) {
+        return kind;
+      }
+      return [kind, ...entries].join(" | ");
+    }
+    function addTagToConflictLabel(label, key, value) {
+      const parsed = parseConflictLabel5(label);
+      parsed.tags[key] = value;
+      return formatConflictLabel2(parsed.baseKind, parsed.tags);
+    }
+    function updateTagInConflictLabel(label, key, value) {
+      return addTagToConflictLabel(label, key, value);
+    }
+    function removeTagFromConflictLabel(label, key) {
+      const parsed = parseConflictLabel5(label);
+      delete parsed.tags[key];
+      return formatConflictLabel2(parsed.baseKind, parsed.tags);
+    }
+    function normalizeConflictLabel(label) {
+      const parsed = parseConflictLabel5(label);
+      return formatConflictLabel2(parsed.baseKind, parsed.tags);
+    }
+    function sanitizeAuthorTagToken(raw) {
+      let s = raw.trim().replace(/\s+/g, "_");
+      s = s.replace(/[|<>]/g, "");
+      if (s.length > 120) {
+        s = s.slice(0, 120);
+      }
+      return s || "unknown";
+    }
+  }
+});
+
 // ../../packages/tonic-core/dist/conflictParser.js
 var require_conflictParser = __commonJS({
   "../../packages/tonic-core/dist/conflictParser.js"(exports2) {
@@ -641,6 +717,7 @@ var require_conflictParser = __commonJS({
     exports2.parseTonicConflicts = parseTonicConflicts7;
     exports2.parseTonicConflictsWithDiagnostics = parseTonicConflictsWithDiagnostics2;
     exports2.conflictSummary = conflictSummary2;
+    var markerLabel_1 = require_markerLabel();
     var BEGIN = /^<<<<<<< begin (.+)$/;
     var MID = /^======= begin (.+)$/;
     var END = /^>>>>>>> end conflict$/;
@@ -660,6 +737,7 @@ var require_conflictParser = __commonJS({
         }
         const startLine = i;
         const kind = bm[1].trim();
+        const parsedKind = (0, markerLabel_1.parseConflictLabel)(kind);
         i += 1;
         const segments = [];
         let currentLabel = kind;
@@ -668,11 +746,17 @@ var require_conflictParser = __commonJS({
         while (i < lines.length) {
           const line = lines[i];
           if (END.test(line)) {
-            segments.push({ label: currentLabel, lines: current });
+            segments.push({
+              label: currentLabel,
+              lines: current,
+              metadata: (0, markerLabel_1.parseConflictLabel)(currentLabel)
+            });
             blocks.push({
               startLine,
               endLine: i,
               kind,
+              baseKind: parsedKind.baseKind,
+              tags: { ...parsedKind.tags },
               segments
             });
             i += 1;
@@ -681,7 +765,11 @@ var require_conflictParser = __commonJS({
           }
           const mm = MID.exec(line);
           if (mm) {
-            segments.push({ label: currentLabel, lines: current });
+            segments.push({
+              label: currentLabel,
+              lines: current,
+              metadata: (0, markerLabel_1.parseConflictLabel)(currentLabel)
+            });
             currentLabel = mm[1].trim();
             current = [];
             i += 1;
@@ -758,9 +846,19 @@ var require_gitConflictParser = __commonJS({
               startLine,
               endLine: i,
               kind: "git merge",
+              baseKind: "git merge",
+              tags: {},
               segments: [
-                { label: oursRef, lines: oursLines },
-                { label: theirsRef, lines: theirsLines }
+                {
+                  label: oursRef,
+                  lines: oursLines,
+                  metadata: { raw: oursRef, baseKind: oursRef, tags: {} }
+                },
+                {
+                  label: theirsRef,
+                  lines: theirsLines,
+                  metadata: { raw: theirsRef, baseKind: theirsRef, tags: {} }
+                }
               ]
             });
             i += 1;
@@ -785,6 +883,93 @@ var require_gitConflictParser = __commonJS({
   }
 });
 
+// ../../packages/tonic-core/dist/gitExec.js
+var require_gitExec = __commonJS({
+  "../../packages/tonic-core/dist/gitExec.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.gitExec = gitExec;
+    exports2.gitRequireOk = gitRequireOk;
+    var node_child_process_1 = require("node:child_process");
+    function gitExec(repoRoot, args) {
+      const r = (0, node_child_process_1.spawnSync)("git", ["-C", repoRoot, ...args], {
+        encoding: "utf8",
+        maxBuffer: 50 * 1024 * 1024
+      });
+      return { code: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+    }
+    function gitRequireOk(repoRoot, args, errCtx) {
+      const { code, stdout, stderr } = gitExec(repoRoot, args);
+      if (code !== 0) {
+        throw new Error(`${errCtx}: git ${args.join(" ")}
+${stderr || stdout}`);
+      }
+      return stdout;
+    }
+  }
+});
+
+// ../../packages/tonic-core/dist/authorAliasResolver.js
+var require_authorAliasResolver = __commonJS({
+  "../../packages/tonic-core/dist/authorAliasResolver.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.parseGitAuthorNameEmail = parseGitAuthorNameEmail;
+    exports2.humanAliasFromGitStdout = humanAliasFromGitStdout;
+    exports2.resolveAuthorAliasForSide = resolveAuthorAliasForSide;
+    exports2.createDefaultGitAuthorProbe = createDefaultGitAuthorProbe;
+    var gitExec_1 = require_gitExec();
+    var markerLabel_1 = require_markerLabel();
+    var DEFAULT_LEFT = "base";
+    var DEFAULT_RIGHT = "head";
+    function emailLocalPart(email) {
+      const at = email.indexOf("@");
+      const local = at >= 0 ? email.slice(0, at) : email;
+      return (0, markerLabel_1.sanitizeAuthorTagToken)(local);
+    }
+    function parseGitAuthorNameEmail(stdout) {
+      const lines = stdout.split(/\r?\n/).filter((l) => l.length > 0);
+      const name = (lines[0] ?? "").trim();
+      const email = (lines[1] ?? "").trim();
+      return { name, email };
+    }
+    function humanAliasFromGitStdout(stdout) {
+      const { name, email } = parseGitAuthorNameEmail(stdout);
+      if (name) {
+        return (0, markerLabel_1.sanitizeAuthorTagToken)(name);
+      }
+      if (email) {
+        return emailLocalPart(email);
+      }
+      return DEFAULT_LEFT;
+    }
+    function resolveAuthorAliasForSide(side, p) {
+      const explicit = side === "left" ? p.explicitLeft : p.explicitRight;
+      if (explicit?.trim()) {
+        return (0, markerLabel_1.sanitizeAuthorTagToken)(explicit);
+      }
+      const gh = side === "left" ? p.githubLoginLeft : p.githubLoginRight;
+      if (gh?.trim()) {
+        return (0, markerLabel_1.sanitizeAuthorTagToken)(gh);
+      }
+      const ref = side === "left" ? p.leftRef : p.rightRef;
+      if (p.mode === "ref" && ref.trim()) {
+        return (0, markerLabel_1.sanitizeAuthorTagToken)(ref.replace(/^refs\/heads\//, ""));
+      }
+      if (p.mode === "human" && p.gitProbe && ref.trim()) {
+        const { stdout, code } = p.gitProbe(p.repoRoot, ref);
+        if (code === 0 && stdout.trim()) {
+          return humanAliasFromGitStdout(stdout);
+        }
+      }
+      return side === "left" ? DEFAULT_LEFT : DEFAULT_RIGHT;
+    }
+    function createDefaultGitAuthorProbe(repoRoot) {
+      return (_root, ref) => (0, gitExec_1.gitExec)(repoRoot, ["show", "-s", "--format=%an%n%ae", ref]);
+    }
+  }
+});
+
 // ../../packages/tonic-core/dist/mergeUtils.js
 var require_mergeUtils = __commonJS({
   "../../packages/tonic-core/dist/mergeUtils.js"(exports2) {
@@ -798,7 +983,10 @@ var require_mergeUtils = __commonJS({
     exports2.suggestionLineCountOk = suggestionLineCountOk;
     exports2.applyTonicResolutions = applyTonicResolutions;
     exports2.applyTonicHeuristic = applyTonicHeuristic;
+    exports2.hydrateTonicAnnotatedAuthorIntent = hydrateTonicAnnotatedAuthorIntent;
     var core_1 = require_core();
+    var conflictParser_1 = require_conflictParser();
+    var markerLabel_1 = require_markerLabel();
     function mergeSnapshots2(leftLines, rightLines, opts) {
       const [mergedState, annotated] = (0, core_1.mergeStates)((0, core_1.initialState)(leftLines, opts?.leftCommitId), (0, core_1.initialState)(rightLines, opts?.rightCommitId));
       return [(0, core_1.currentLines)(mergedState), annotated];
@@ -815,6 +1003,7 @@ var require_mergeUtils = __commonJS({
           continue;
         }
         const kind = line.slice("<<<<<<< begin ".length).trim();
+        const kindMeta = (0, markerLabel_1.parseConflictLabel)(kind);
         const startLine = i + 1;
         i += 1;
         const inner = [];
@@ -826,8 +1015,10 @@ var require_mergeUtils = __commonJS({
         const leftLines = [];
         const rightLines = [];
         let seenMid = false;
+        let midMarkerLabel = "";
         for (const cl of inner) {
           if (cl.startsWith("======= begin ")) {
+            midMarkerLabel = cl.slice("======= begin ".length).trim();
             seenMid = true;
             continue;
           }
@@ -837,13 +1028,18 @@ var require_mergeUtils = __commonJS({
             rightLines.push(cl);
           }
         }
+        const sameLabels = !midMarkerLabel || midMarkerLabel === kind;
         conflicts.push({
           baseContent: "",
           leftContent: leftLines.join("\n"),
           rightContent: rightLines.join("\n"),
           startLine,
           endLine,
-          conflictKind: kind
+          conflictKind: kind,
+          conflictBaseKind: kindMeta.baseKind,
+          conflictTags: { ...kindMeta.tags },
+          markerLabelBegin: sameLabels ? void 0 : kind,
+          markerLabelMid: sameLabels ? void 0 : midMarkerLabel || void 0
         });
         if (i < n && annotatedLines[i].startsWith(">>>>>>> end conflict")) {
           i += 1;
@@ -854,14 +1050,17 @@ var require_mergeUtils = __commonJS({
     function conflictRegionsToAnnotatedLines3(regions) {
       const out = [];
       for (const r of regions) {
-        const kind = r.conflictKind.trim() || "added both";
-        out.push(`<<<<<<< begin ${kind}`);
+        const kind = (r.conflictKind ?? "").trim() || "added both";
+        const conflictKind = r.conflictBaseKind || r.conflictTags ? (0, markerLabel_1.formatConflictLabel)(r.conflictBaseKind ?? (0, markerLabel_1.parseConflictLabel)(kind).baseKind, r.conflictTags ?? {}) : (0, markerLabel_1.normalizeConflictLabel)(kind);
+        const beginLabel = r.markerLabelBegin ?? conflictKind;
+        const midLabel = r.markerLabelMid ?? r.markerLabelBegin ?? conflictKind;
+        out.push(`<<<<<<< begin ${beginLabel}`);
         const left = r.leftContent ? r.leftContent.split(/\r?\n/) : [];
         const right = r.rightContent ? r.rightContent.split(/\r?\n/) : [];
         for (const ln of left) {
           out.push(ln);
         }
-        out.push(`======= begin ${kind}`);
+        out.push(`======= begin ${midLabel}`);
         for (const ln of right) {
           out.push(ln);
         }
@@ -882,7 +1081,9 @@ var require_mergeUtils = __commonJS({
             rightContent: rightLines.join("\n"),
             startLine: b.startLine + 1,
             endLine: b.endLine + 1,
-            conflictKind: b.kind
+            conflictKind: b.kind,
+            conflictBaseKind: b.baseKind,
+            conflictTags: { ...b.tags }
           };
         })
       };
@@ -916,6 +1117,77 @@ var require_mergeUtils = __commonJS({
       const resolved = cf.conflicts.map((c) => heuristicResolvedLines(c));
       return applyTonicResolutions(annotatedLines, resolved);
     }
+    function blockToHydratedRegion(block, opts) {
+      if (block.segments.length < 2) {
+        const seg02 = block.segments[0];
+        const t02 = { ...seg02?.metadata.tags ?? {} };
+        if (!t02.author)
+          t02.author = opts.leftAuthor;
+        if (!t02.intent)
+          t02.intent = opts.leftIntent;
+        const base = seg02?.metadata.baseKind ?? block.baseKind;
+        return {
+          baseContent: "",
+          leftContent: seg02?.lines.join("\n") ?? "",
+          rightContent: "",
+          startLine: block.startLine + 1,
+          endLine: block.endLine + 1,
+          conflictKind: (0, markerLabel_1.formatConflictLabel)(base, t02),
+          conflictBaseKind: base,
+          conflictTags: { ...t02 }
+        };
+      }
+      const seg0 = block.segments[0];
+      const seg1 = block.segments[1];
+      const t0 = { ...seg0.metadata.tags };
+      const t1 = { ...seg1.metadata.tags };
+      if (!t0.author)
+        t0.author = opts.leftAuthor;
+      if (!t0.intent)
+        t0.intent = opts.leftIntent;
+      if (!t1.author)
+        t1.author = opts.rightAuthor;
+      if (!t1.intent)
+        t1.intent = opts.rightIntent;
+      const mlBegin = (0, markerLabel_1.formatConflictLabel)(seg0.metadata.baseKind, t0);
+      const mlMid = (0, markerLabel_1.formatConflictLabel)(seg1.metadata.baseKind, t1);
+      const same = mlBegin === mlMid;
+      return {
+        baseContent: "",
+        leftContent: seg0.lines.join("\n"),
+        rightContent: seg1.lines.join("\n"),
+        startLine: block.startLine + 1,
+        endLine: block.endLine + 1,
+        conflictKind: block.kind,
+        conflictBaseKind: block.baseKind,
+        conflictTags: { ...block.tags },
+        markerLabelBegin: same ? void 0 : mlBegin,
+        markerLabelMid: same ? void 0 : mlMid
+      };
+    }
+    function hydrateTonicAnnotatedAuthorIntent(annotatedLines, opts) {
+      const text = annotatedLines.join("\n");
+      const { blocks } = (0, conflictParser_1.parseTonicConflictsWithDiagnostics)(text);
+      if (blocks.length === 0) {
+        return annotatedLines;
+      }
+      const out = [];
+      let lineIdx = 0;
+      for (const b of blocks) {
+        while (lineIdx < b.startLine) {
+          out.push(annotatedLines[lineIdx]);
+          lineIdx++;
+        }
+        const region = blockToHydratedRegion(b, opts);
+        out.push(...conflictRegionsToAnnotatedLines3([region]));
+        lineIdx = b.endLine + 1;
+      }
+      while (lineIdx < annotatedLines.length) {
+        out.push(annotatedLines[lineIdx]);
+        lineIdx++;
+      }
+      return out;
+    }
   }
 });
 
@@ -924,27 +1196,186 @@ var require_markerInterop = __commonJS({
   "../../packages/tonic-core/dist/markerInterop.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DEFAULT_GIT_MERGE_RIGHT_INTENT = exports2.DEFAULT_GIT_MERGE_LEFT_INTENT = void 0;
     exports2.gitConflictBlocksToConflictRegions = gitConflictBlocksToConflictRegions;
     exports2.gitConflictBlocksToTonicAnnotatedPreview = gitConflictBlocksToTonicAnnotatedPreview2;
+    var authorAliasResolver_1 = require_authorAliasResolver();
+    var markerLabel_1 = require_markerLabel();
     var mergeUtils_1 = require_mergeUtils();
     var GIT_MERGE_KIND = "git merge";
-    function gitConflictBlocksToConflictRegions(blocks) {
+    exports2.DEFAULT_GIT_MERGE_LEFT_INTENT = "preserve_base";
+    exports2.DEFAULT_GIT_MERGE_RIGHT_INTENT = "prefer_head";
+    function mergeHydrationDefaults(opts) {
+      return {
+        authorMode: opts?.authorMode ?? "base-head",
+        leftIntent: opts?.leftIntent ?? exports2.DEFAULT_GIT_MERGE_LEFT_INTENT,
+        rightIntent: opts?.rightIntent ?? exports2.DEFAULT_GIT_MERGE_RIGHT_INTENT,
+        ...opts
+      };
+    }
+    function gitConflictBlocksToConflictRegions(blocks, opts) {
+      const o = mergeHydrationDefaults(opts);
+      const repoRoot = o.repoRoot ?? process.cwd();
+      const leftRef = o.leftRef ?? "";
+      const rightRef = o.rightRef ?? "";
+      const mode = o.authorMode ?? "base-head";
+      const gitProbe = mode === "human" && o.repoRoot !== void 0 ? (0, authorAliasResolver_1.createDefaultGitAuthorProbe)(repoRoot) : void 0;
       return blocks.map((b) => {
         const leftLines = b.segments[0]?.lines ?? [];
         const rightLines = b.segments[1]?.lines ?? [];
+        const leftAuth = (0, authorAliasResolver_1.resolveAuthorAliasForSide)("left", {
+          repoRoot,
+          mode,
+          leftRef,
+          rightRef,
+          explicitLeft: o.explicitLeftAuthor,
+          explicitRight: o.explicitRightAuthor,
+          githubLoginLeft: o.githubLoginLeft,
+          githubLoginRight: o.githubLoginRight,
+          gitProbe
+        });
+        const rightAuth = (0, authorAliasResolver_1.resolveAuthorAliasForSide)("right", {
+          repoRoot,
+          mode,
+          leftRef,
+          rightRef,
+          explicitLeft: o.explicitLeftAuthor,
+          explicitRight: o.explicitRightAuthor,
+          githubLoginLeft: o.githubLoginLeft,
+          githubLoginRight: o.githubLoginRight,
+          gitProbe
+        });
+        const leftIntent = (o.leftIntent ?? exports2.DEFAULT_GIT_MERGE_LEFT_INTENT).trim() || exports2.DEFAULT_GIT_MERGE_LEFT_INTENT;
+        const rightIntent = (o.rightIntent ?? exports2.DEFAULT_GIT_MERGE_RIGHT_INTENT).trim() || exports2.DEFAULT_GIT_MERGE_RIGHT_INTENT;
+        const mlBegin = (0, markerLabel_1.formatConflictLabel)(GIT_MERGE_KIND, { author: leftAuth, intent: leftIntent });
+        const mlMid = (0, markerLabel_1.formatConflictLabel)(GIT_MERGE_KIND, { author: rightAuth, intent: rightIntent });
         return {
           baseContent: "",
           leftContent: leftLines.join("\n"),
           rightContent: rightLines.join("\n"),
           startLine: b.startLine + 1,
           endLine: b.endLine + 1,
-          conflictKind: b.kind === GIT_MERGE_KIND ? GIT_MERGE_KIND : b.kind
+          conflictKind: GIT_MERGE_KIND,
+          conflictBaseKind: GIT_MERGE_KIND,
+          conflictTags: {
+            author: leftAuth,
+            intent: leftIntent,
+            author_right: rightAuth,
+            intent_right: rightIntent
+          },
+          markerLabelBegin: mlBegin,
+          markerLabelMid: mlMid
         };
       });
     }
-    function gitConflictBlocksToTonicAnnotatedPreview2(blocks) {
-      const regions = gitConflictBlocksToConflictRegions(blocks);
+    function gitConflictBlocksToTonicAnnotatedPreview2(blocks, opts) {
+      const regions = gitConflictBlocksToConflictRegions(blocks, opts);
       return (0, mergeUtils_1.conflictRegionsToAnnotatedLines)(regions.map((r) => ({ ...r, conflictKind: GIT_MERGE_KIND })));
+    }
+  }
+});
+
+// ../../packages/tonic-core/dist/intentInteractive.js
+var require_intentInteractive = __commonJS({
+  "../../packages/tonic-core/dist/intentInteractive.js"(exports2) {
+    "use strict";
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
+      }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v) {
+      Object.defineProperty(o, "default", { enumerable: true, value: v });
+    }) : function(o, v) {
+      o["default"] = v;
+    });
+    var __importStar = exports2 && exports2.__importStar || /* @__PURE__ */ (function() {
+      var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function(o2) {
+          var ar = [];
+          for (var k in o2) if (Object.prototype.hasOwnProperty.call(o2, k)) ar[ar.length] = k;
+          return ar;
+        };
+        return ownKeys(o);
+      };
+      return function(mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) {
+          for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        }
+        __setModuleDefault(result, mod);
+        return result;
+      };
+    })();
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DEFAULT_INTENT_PROFILE_PATH = void 0;
+    exports2.loadIntentProfile = loadIntentProfile;
+    exports2.saveIntentProfile = saveIntentProfile;
+    exports2.parseIntentPair = parseIntentPair;
+    exports2.promptIntentPairInteractive = promptIntentPairInteractive;
+    var fs = __importStar(require("node:fs"));
+    var path = __importStar(require("node:path"));
+    var readline = __importStar(require("node:readline/promises"));
+    var markerInterop_1 = require_markerInterop();
+    exports2.DEFAULT_INTENT_PROFILE_PATH = ".tonic/intent-profile.json";
+    function loadIntentProfile(filePath) {
+      try {
+        const raw = fs.readFileSync(filePath, "utf8");
+        const j = JSON.parse(raw);
+        if (j && typeof j === "object") {
+          return { version: 1, leftIntent: j.leftIntent, rightIntent: j.rightIntent };
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+    function saveIntentProfile(filePath, profile) {
+      const abs = path.resolve(filePath);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, JSON.stringify({ version: 1, leftIntent: profile.leftIntent, rightIntent: profile.rightIntent }, null, 2) + "\n", "utf8");
+    }
+    function parseIntentPair(raw) {
+      const s = raw.trim();
+      if (!s) {
+        return null;
+      }
+      const idx = s.indexOf(",");
+      if (idx < 0) {
+        return null;
+      }
+      const left = s.slice(0, idx).trim();
+      const right = s.slice(idx + 1).trim();
+      if (!left || !right) {
+        return null;
+      }
+      return { left, right };
+    }
+    async function promptIntentPairInteractive(params) {
+      const input = params.input ?? process.stdin;
+      const output = params.output ?? process.stdout;
+      const dl = params.defaultLeft ?? markerInterop_1.DEFAULT_GIT_MERGE_LEFT_INTENT;
+      const dr = params.defaultRight ?? markerInterop_1.DEFAULT_GIT_MERGE_RIGHT_INTENT;
+      const rl = readline.createInterface({ input, output });
+      try {
+        const leftRaw = (await rl.question(`Left (base) intent [${dl}]: `)).trim();
+        const rightRaw = (await rl.question(`Right (head) intent [${dr}]: `)).trim();
+        return {
+          leftIntent: leftRaw || dl,
+          rightIntent: rightRaw || dr
+        };
+      } finally {
+        rl.close();
+      }
     }
   }
 });
@@ -954,7 +1385,8 @@ var require_dist = __commonJS({
   "../../packages/tonic-core/dist/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.applyTonicHeuristic = exports2.applyTonicResolutions = exports2.suggestionLineCountOk = exports2.heuristicResolvedLines = exports2.conflictFileFromBlocks = exports2.conflictRegionsToAnnotatedLines = exports2.annotatedToConflictFile = exports2.mergeSnapshots = exports2.gitConflictBlocksToTonicAnnotatedPreview = exports2.gitConflictBlocksToConflictRegions = exports2.hasGitConflictMarkers = exports2.parseGitConflictsWithDiagnostics = exports2.parseGitConflicts = exports2.conflictSummary = exports2.parseTonicConflictsWithDiagnostics = exports2.parseTonicConflicts = exports2.deserializeState = exports2.serializeState = exports2.conflictCode = exports2.showConflicts = exports2.END_MARKER = exports2.conflictStrings = exports2.PEACE = exports2.CONFLICT_DELETED_RIGHT = exports2.CONFLICT_DELETED_LEFT = exports2.CONFLICT_ADDED_BOTH = exports2.CONFLICT_ADDED_RIGHT = exports2.CONFLICT_ADDED_LEFT = exports2.mergeStates = exports2.updateState = exports2.currentLines = exports2.initialState = void 0;
+    exports2.applyTonicHeuristic = exports2.applyTonicResolutions = exports2.suggestionLineCountOk = exports2.heuristicResolvedLines = exports2.conflictFileFromBlocks = exports2.conflictRegionsToAnnotatedLines = exports2.annotatedToConflictFile = exports2.mergeSnapshots = exports2.DEFAULT_INTENT_PROFILE_PATH = exports2.promptIntentPairInteractive = exports2.parseIntentPair = exports2.saveIntentProfile = exports2.loadIntentProfile = exports2.createDefaultGitAuthorProbe = exports2.parseGitAuthorNameEmail = exports2.humanAliasFromGitStdout = exports2.resolveAuthorAliasForSide = exports2.DEFAULT_GIT_MERGE_RIGHT_INTENT = exports2.DEFAULT_GIT_MERGE_LEFT_INTENT = exports2.gitConflictBlocksToTonicAnnotatedPreview = exports2.gitConflictBlocksToConflictRegions = exports2.hasGitConflictMarkers = exports2.parseGitConflictsWithDiagnostics = exports2.parseGitConflicts = exports2.sanitizeAuthorTagToken = exports2.normalizeConflictLabel = exports2.updateTagInConflictLabel = exports2.removeTagFromConflictLabel = exports2.addTagToConflictLabel = exports2.formatConflictLabel = exports2.parseConflictLabel = exports2.conflictSummary = exports2.parseTonicConflictsWithDiagnostics = exports2.parseTonicConflicts = exports2.deserializeState = exports2.serializeState = exports2.conflictCode = exports2.showConflicts = exports2.END_MARKER = exports2.conflictStrings = exports2.PEACE = exports2.CONFLICT_DELETED_RIGHT = exports2.CONFLICT_DELETED_LEFT = exports2.CONFLICT_ADDED_BOTH = exports2.CONFLICT_ADDED_RIGHT = exports2.CONFLICT_ADDED_LEFT = exports2.mergeStates = exports2.updateState = exports2.currentLines = exports2.initialState = void 0;
+    exports2.hydrateTonicAnnotatedAuthorIntent = void 0;
     var core_1 = require_core();
     Object.defineProperty(exports2, "initialState", { enumerable: true, get: function() {
       return core_1.initialState;
@@ -1016,6 +1448,28 @@ var require_dist = __commonJS({
     Object.defineProperty(exports2, "conflictSummary", { enumerable: true, get: function() {
       return conflictParser_1.conflictSummary;
     } });
+    var markerLabel_1 = require_markerLabel();
+    Object.defineProperty(exports2, "parseConflictLabel", { enumerable: true, get: function() {
+      return markerLabel_1.parseConflictLabel;
+    } });
+    Object.defineProperty(exports2, "formatConflictLabel", { enumerable: true, get: function() {
+      return markerLabel_1.formatConflictLabel;
+    } });
+    Object.defineProperty(exports2, "addTagToConflictLabel", { enumerable: true, get: function() {
+      return markerLabel_1.addTagToConflictLabel;
+    } });
+    Object.defineProperty(exports2, "removeTagFromConflictLabel", { enumerable: true, get: function() {
+      return markerLabel_1.removeTagFromConflictLabel;
+    } });
+    Object.defineProperty(exports2, "updateTagInConflictLabel", { enumerable: true, get: function() {
+      return markerLabel_1.updateTagInConflictLabel;
+    } });
+    Object.defineProperty(exports2, "normalizeConflictLabel", { enumerable: true, get: function() {
+      return markerLabel_1.normalizeConflictLabel;
+    } });
+    Object.defineProperty(exports2, "sanitizeAuthorTagToken", { enumerable: true, get: function() {
+      return markerLabel_1.sanitizeAuthorTagToken;
+    } });
     var gitConflictParser_1 = require_gitConflictParser();
     Object.defineProperty(exports2, "parseGitConflicts", { enumerable: true, get: function() {
       return gitConflictParser_1.parseGitConflicts;
@@ -1032,6 +1486,41 @@ var require_dist = __commonJS({
     } });
     Object.defineProperty(exports2, "gitConflictBlocksToTonicAnnotatedPreview", { enumerable: true, get: function() {
       return markerInterop_1.gitConflictBlocksToTonicAnnotatedPreview;
+    } });
+    Object.defineProperty(exports2, "DEFAULT_GIT_MERGE_LEFT_INTENT", { enumerable: true, get: function() {
+      return markerInterop_1.DEFAULT_GIT_MERGE_LEFT_INTENT;
+    } });
+    Object.defineProperty(exports2, "DEFAULT_GIT_MERGE_RIGHT_INTENT", { enumerable: true, get: function() {
+      return markerInterop_1.DEFAULT_GIT_MERGE_RIGHT_INTENT;
+    } });
+    var authorAliasResolver_1 = require_authorAliasResolver();
+    Object.defineProperty(exports2, "resolveAuthorAliasForSide", { enumerable: true, get: function() {
+      return authorAliasResolver_1.resolveAuthorAliasForSide;
+    } });
+    Object.defineProperty(exports2, "humanAliasFromGitStdout", { enumerable: true, get: function() {
+      return authorAliasResolver_1.humanAliasFromGitStdout;
+    } });
+    Object.defineProperty(exports2, "parseGitAuthorNameEmail", { enumerable: true, get: function() {
+      return authorAliasResolver_1.parseGitAuthorNameEmail;
+    } });
+    Object.defineProperty(exports2, "createDefaultGitAuthorProbe", { enumerable: true, get: function() {
+      return authorAliasResolver_1.createDefaultGitAuthorProbe;
+    } });
+    var intentInteractive_1 = require_intentInteractive();
+    Object.defineProperty(exports2, "loadIntentProfile", { enumerable: true, get: function() {
+      return intentInteractive_1.loadIntentProfile;
+    } });
+    Object.defineProperty(exports2, "saveIntentProfile", { enumerable: true, get: function() {
+      return intentInteractive_1.saveIntentProfile;
+    } });
+    Object.defineProperty(exports2, "parseIntentPair", { enumerable: true, get: function() {
+      return intentInteractive_1.parseIntentPair;
+    } });
+    Object.defineProperty(exports2, "promptIntentPairInteractive", { enumerable: true, get: function() {
+      return intentInteractive_1.promptIntentPairInteractive;
+    } });
+    Object.defineProperty(exports2, "DEFAULT_INTENT_PROFILE_PATH", { enumerable: true, get: function() {
+      return intentInteractive_1.DEFAULT_INTENT_PROFILE_PATH;
     } });
     var mergeUtils_1 = require_mergeUtils();
     Object.defineProperty(exports2, "mergeSnapshots", { enumerable: true, get: function() {
@@ -1058,6 +1547,9 @@ var require_dist = __commonJS({
     Object.defineProperty(exports2, "applyTonicHeuristic", { enumerable: true, get: function() {
       return mergeUtils_1.applyTonicHeuristic;
     } });
+    Object.defineProperty(exports2, "hydrateTonicAnnotatedAuthorIntent", { enumerable: true, get: function() {
+      return mergeUtils_1.hydrateTonicAnnotatedAuthorIntent;
+    } });
   }
 });
 
@@ -1068,49 +1560,99 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode9 = __toESM(require("vscode"));
-var import_core8 = __toESM(require_dist());
+var vscode11 = __toESM(require("vscode"));
+var import_core11 = __toESM(require_dist());
 
 // src/commands/applyReportToWorkspace.ts
+var vscode2 = __toESM(require("vscode"));
+var import_core2 = __toESM(require_dist());
+
+// src/gitMergeReconstruct.ts
 var vscode = __toESM(require("vscode"));
 var import_core = __toESM(require_dist());
-function regionsJsonToCore(regions) {
+function reportRegionsToCore(regions) {
   return (regions ?? []).map((r) => ({
     baseContent: r.base_content ?? "",
     leftContent: r.left_content ?? "",
     rightContent: r.right_content ?? "",
     startLine: r.start_line,
     endLine: r.end_line,
-    conflictKind: r.conflict_kind
+    conflictKind: r.conflict_kind,
+    conflictBaseKind: r.conflict_base_kind,
+    conflictTags: r.conflict_tags,
+    markerLabelBegin: r.marker_label_begin,
+    markerLabelMid: r.marker_label_mid
   }));
 }
+function readGitMergeDefaultsFromConfig() {
+  const c = vscode.workspace.getConfiguration("tonic");
+  return {
+    leftIntent: c.get("gitMergeIntent.leftDefault", "preserve_base") ?? "preserve_base",
+    rightIntent: c.get("gitMergeIntent.rightDefault", "prefer_head") ?? "prefer_head",
+    leftAuthor: c.get("gitMergeAuthor.leftDefault", "") ?? "",
+    rightAuthor: c.get("gitMergeAuthor.rightDefault", "") ?? ""
+  };
+}
+function applyGitMergeReconstructDefaults(regions, d) {
+  return regions.map((r) => {
+    if (r.markerLabelBegin || r.markerLabelMid) {
+      return r;
+    }
+    const meta = (0, import_core.parseConflictLabel)(r.conflictKind ?? "");
+    if (meta.baseKind.trim().toLowerCase() !== "git merge") {
+      return r;
+    }
+    const tags = { ...meta.tags, ...r.conflictTags ?? {} };
+    if (!tags.intent) {
+      tags.intent = d.leftIntent;
+    }
+    if (!tags.author) {
+      tags.author = d.leftAuthor.trim() || "base";
+    }
+    if (!tags.intent_right) {
+      tags.intent_right = d.rightIntent;
+    }
+    if (!tags.author_right) {
+      tags.author_right = d.rightAuthor.trim() || "head";
+    }
+    return {
+      ...r,
+      conflictBaseKind: "git merge",
+      conflictTags: tags,
+      conflictKind: (0, import_core.formatConflictLabel)("git merge", tags)
+    };
+  });
+}
+
+// src/commands/applyReportToWorkspace.ts
 function artifactBody(a) {
   if (a.annotated_lines?.length) {
     return a.annotated_lines.join("\n");
   }
-  const regions = regionsJsonToCore(a.conflict_regions);
-  if (regions.length) {
-    return (0, import_core.conflictRegionsToAnnotatedLines)(regions).join("\n");
+  const raw = reportRegionsToCore(a.conflict_regions);
+  if (raw.length) {
+    const regions = applyGitMergeReconstructDefaults(raw, readGitMergeDefaultsFromConfig());
+    return (0, import_core2.conflictRegionsToAnnotatedLines)(regions).join("\n");
   }
   return null;
 }
 async function applyArtifactToWorkspace(_report, artifact) {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+  const folder = vscode2.workspace.workspaceFolders?.[0];
   if (!folder) {
-    await vscode.window.showErrorMessage("Tonic: open a folder in the workspace first.");
+    await vscode2.window.showErrorMessage("Tonic: open a folder in the workspace first.");
     return;
   }
   const body = artifactBody(artifact);
   if (body == null) {
-    await vscode.window.showErrorMessage(
+    await vscode2.window.showErrorMessage(
       "Tonic: no annotated_lines or conflict_regions to write for this file."
     );
     return;
   }
-  const target = vscode.Uri.joinPath(folder.uri, artifact.path.replace(/\\/g, "/"));
-  const pick = await vscode.window.showWarningMessage(
+  const target = vscode2.Uri.joinPath(folder.uri, artifact.path.replace(/\\/g, "/"));
+  const pick = await vscode2.window.showWarningMessage(
     `Tonic: overwrite workspace file?
-${vscode.workspace.asRelativePath(target)}`,
+${vscode2.workspace.asRelativePath(target)}`,
     { modal: true },
     "Write file",
     "Cancel"
@@ -1119,26 +1661,26 @@ ${vscode.workspace.asRelativePath(target)}`,
     return;
   }
   try {
-    await vscode.workspace.fs.stat(target);
+    await vscode2.workspace.fs.stat(target);
     const norm = artifact.path.replace(/\\/g, "/").split("/");
     const fileName = norm.pop() ?? "file";
     const bakName = `${fileName}.tonic.bak`;
-    const bak = norm.length > 0 ? vscode.Uri.joinPath(folder.uri, ...norm, bakName) : vscode.Uri.joinPath(folder.uri, bakName);
-    const prev = await vscode.workspace.fs.readFile(target);
-    await vscode.workspace.fs.writeFile(bak, prev);
+    const bak = norm.length > 0 ? vscode2.Uri.joinPath(folder.uri, ...norm, bakName) : vscode2.Uri.joinPath(folder.uri, bakName);
+    const prev = await vscode2.workspace.fs.readFile(target);
+    await vscode2.workspace.fs.writeFile(bak, prev);
   } catch {
   }
-  await vscode.workspace.fs.writeFile(target, Buffer.from(body, "utf8"));
-  await vscode.window.showInformationMessage(
+  await vscode2.workspace.fs.writeFile(target, Buffer.from(body, "utf8"));
+  await vscode2.window.showInformationMessage(
     `Tonic: wrote markers to ${artifact.path}. Open the file to use CodeLens / decorations.`
   );
-  const doc = await vscode.workspace.openTextDocument(target);
-  await vscode.window.showTextDocument(doc);
+  const doc = await vscode2.workspace.openTextDocument(target);
+  await vscode2.window.showTextDocument(doc);
 }
 
 // src/diagnosticsProvider.ts
-var vscode2 = __toESM(require("vscode"));
-var import_core2 = __toESM(require_dist());
+var vscode3 = __toESM(require("vscode"));
+var import_core3 = __toESM(require_dist());
 function lineFromWarning(w) {
   const m = w.match(/line (\d+)/);
   if (m) {
@@ -1149,27 +1691,27 @@ function lineFromWarning(w) {
 function collectTonicDiagnostics(text) {
   const out = [];
   if (text.includes("<<<<<<< begin ")) {
-    const { warnings } = (0, import_core2.parseTonicConflictsWithDiagnostics)(text);
+    const { warnings } = (0, import_core3.parseTonicConflictsWithDiagnostics)(text);
     for (const w of warnings) {
       const ln = lineFromWarning(w);
       out.push(
-        new vscode2.Diagnostic(
-          new vscode2.Range(ln, 0, ln, 0),
+        new vscode3.Diagnostic(
+          new vscode3.Range(ln, 0, ln, 0),
           w,
-          vscode2.DiagnosticSeverity.Warning
+          vscode3.DiagnosticSeverity.Warning
         )
       );
     }
   }
-  if ((0, import_core2.hasGitConflictMarkers)(text)) {
-    const { warnings } = (0, import_core2.parseGitConflictsWithDiagnostics)(text);
+  if ((0, import_core3.hasGitConflictMarkers)(text)) {
+    const { warnings } = (0, import_core3.parseGitConflictsWithDiagnostics)(text);
     for (const w of warnings) {
       const ln = lineFromWarning(w);
       out.push(
-        new vscode2.Diagnostic(
-          new vscode2.Range(ln, 0, ln, 0),
+        new vscode3.Diagnostic(
+          new vscode3.Range(ln, 0, ln, 0),
           `Git conflict: ${w}`,
-          vscode2.DiagnosticSeverity.Information
+          vscode3.DiagnosticSeverity.Information
         )
       );
     }
@@ -1177,13 +1719,13 @@ function collectTonicDiagnostics(text) {
   return out;
 }
 function registerTonicDiagnostics(context) {
-  const coll = vscode2.languages.createDiagnosticCollection("tonic");
+  const coll = vscode3.languages.createDiagnosticCollection("tonic");
   const refresh = (doc) => {
     if (!doc || doc.uri.scheme !== "file") {
       return;
     }
     const t = doc.getText();
-    if (!t.includes("<<<<<<< ") && !(0, import_core2.hasGitConflictMarkers)(t)) {
+    if (!t.includes("<<<<<<< ") && !(0, import_core3.hasGitConflictMarkers)(t)) {
       coll.delete(doc.uri);
       return;
     }
@@ -1191,57 +1733,57 @@ function registerTonicDiagnostics(context) {
   };
   context.subscriptions.push(coll);
   context.subscriptions.push(
-    vscode2.workspace.onDidOpenTextDocument((d) => refresh(d))
+    vscode3.workspace.onDidOpenTextDocument((d) => refresh(d))
   );
   context.subscriptions.push(
-    vscode2.workspace.onDidChangeTextDocument((e) => refresh(e.document))
+    vscode3.workspace.onDidChangeTextDocument((e) => refresh(e.document))
   );
   context.subscriptions.push(
-    vscode2.window.onDidChangeActiveTextEditor((ed) => refresh(ed?.document))
+    vscode3.window.onDidChangeActiveTextEditor((ed) => refresh(ed?.document))
   );
-  refresh(vscode2.window.activeTextEditor?.document);
+  refresh(vscode3.window.activeTextEditor?.document);
   return coll;
 }
 
 // src/codeLensProvider.ts
-var vscode3 = __toESM(require("vscode"));
-var import_core3 = __toESM(require_dist());
+var vscode4 = __toESM(require("vscode"));
+var import_core4 = __toESM(require_dist());
 var TonicCodeLensProvider = class {
-  _onDidChange = new vscode3.EventEmitter();
+  _onDidChange = new vscode4.EventEmitter();
   onDidChangeCodeLenses = this._onDidChange.event;
   provideCodeLenses(doc) {
     if (!doc.getText().includes("<<<<<<< begin ")) {
       return [];
     }
-    const blocks = (0, import_core3.parseTonicConflicts)(doc.getText());
+    const blocks = (0, import_core4.parseTonicConflicts)(doc.getText());
     const lenses = [];
     for (const b of blocks) {
-      const range = new vscode3.Range(b.startLine, 0, b.startLine, 0);
+      const range = new vscode4.Range(b.startLine, 0, b.startLine, 0);
       lenses.push(
-        new vscode3.CodeLens(range, {
+        new vscode4.CodeLens(range, {
           title: "Keep Left",
           command: "tonic.keepLeft",
           arguments: [b.startLine]
         })
       );
       lenses.push(
-        new vscode3.CodeLens(range, {
-          title: "Prefer head (deterministic)",
+        new vscode4.CodeLens(range, {
+          title: "Keep Right",
           command: "tonic.keepRight",
           arguments: [b.startLine]
         })
       );
       lenses.push(
-        new vscode3.CodeLens(range, {
+        new vscode4.CodeLens(range, {
           title: "Keep Both",
           command: "tonic.keepBoth",
           arguments: [b.startLine]
         })
       );
       lenses.push(
-        new vscode3.CodeLens(range, {
-          title: "Resolve with Agent",
-          command: "tonic.resolveWithAgent",
+        new vscode4.CodeLens(range, {
+          title: "Resolve with AI",
+          command: "tonic.resolveWithAI",
           arguments: [b.startLine]
         })
       );
@@ -1254,19 +1796,109 @@ var TonicCodeLensProvider = class {
 };
 
 // src/decorations.ts
-var vscode4 = __toESM(require("vscode"));
-var import_core4 = __toESM(require_dist());
+var vscode6 = __toESM(require("vscode"));
+var import_core6 = __toESM(require_dist());
+
+// src/config/conflictLabelConfig.ts
+var vscode5 = __toESM(require("vscode"));
+var import_core5 = __toESM(require_dist());
+var PALETTES = {
+  tonic: {
+    "added left": "#fff3cd",
+    "added right": "#cce5ff",
+    "added both": "#d4edda",
+    "deleted left": "#f8d7da",
+    "deleted right": "#fce5cd",
+    "deleted both": "#e2e3e5",
+    "git merge": "#e7d9ff"
+  },
+  contrast: {
+    "added left": "#ffe082",
+    "added right": "#81d4fa",
+    "added both": "#a5d6a7",
+    "deleted left": "#ef9a9a",
+    "deleted right": "#ffcc80",
+    "deleted both": "#b0bec5",
+    "git merge": "#ce93d8"
+  }
+};
+function asPalette(value) {
+  switch (value) {
+    case "contrast":
+      return "contrast";
+    case "tonic":
+    default:
+      return "tonic";
+  }
+}
+function parseRules(value) {
+  if (!value || typeof value !== "object" || !Array.isArray(value.rules)) {
+    return [];
+  }
+  const out = [];
+  for (const raw of value.rules) {
+    if (!raw || typeof raw !== "object") {
+      continue;
+    }
+    const candidate = raw;
+    if (typeof candidate.backgroundColor !== "string" || !candidate.backgroundColor.trim()) {
+      continue;
+    }
+    const tags = {};
+    if (candidate.tags && typeof candidate.tags === "object") {
+      for (const [k, v] of Object.entries(candidate.tags)) {
+        if (typeof v === "string") {
+          tags[k] = v;
+        }
+      }
+    }
+    out.push({
+      kind: typeof candidate.kind === "string" ? candidate.kind : void 0,
+      tags,
+      backgroundColor: candidate.backgroundColor.trim()
+    });
+  }
+  return out;
+}
+function tagsMatch(actual, expected) {
+  for (const [key, value] of Object.entries(expected)) {
+    if (actual[key] !== value) {
+      return false;
+    }
+  }
+  return true;
+}
+function semanticColorForLabel(label) {
+  const cfg = vscode5.workspace.getConfiguration("tonic");
+  const enabled = cfg.get("highlight.enableSemantic", false);
+  if (!enabled) {
+    return void 0;
+  }
+  const paletteName = asPalette(cfg.get("highlight.defaultPalette", "tonic"));
+  const parsed = (0, import_core5.parseConflictLabel)(label);
+  const userRules = parseRules(cfg.get("conflictLabelConfig"));
+  for (const rule of userRules) {
+    const kindOk = !rule.kind || rule.kind === parsed.baseKind;
+    const tagsOk = !rule.tags || tagsMatch(parsed.tags, rule.tags);
+    if (kindOk && tagsOk) {
+      return rule.backgroundColor;
+    }
+  }
+  return PALETTES[paletteName][parsed.baseKind];
+}
+
+// src/decorations.ts
 function createDecorationTypes() {
   return {
-    left: vscode4.window.createTextEditorDecorationType({
-      backgroundColor: new vscode4.ThemeColor("tonic.leftBackground"),
+    left: vscode6.window.createTextEditorDecorationType({
+      backgroundColor: new vscode6.ThemeColor("tonic.leftBackground"),
       isWholeLine: true
     }),
-    right: vscode4.window.createTextEditorDecorationType({
-      backgroundColor: new vscode4.ThemeColor("tonic.rightBackground"),
+    right: vscode6.window.createTextEditorDecorationType({
+      backgroundColor: new vscode6.ThemeColor("tonic.rightBackground"),
       isWholeLine: true
     }),
-    header: vscode4.window.createTextEditorDecorationType({
+    header: vscode6.window.createTextEditorDecorationType({
       fontWeight: "bold"
     })
   };
@@ -1277,7 +1909,7 @@ function rangesForBlock(doc, block) {
   const right = [];
   const headers = [];
   headers.push(
-    new vscode4.Range(block.startLine, 0, block.startLine, lines[block.startLine]?.length ?? 0)
+    new vscode6.Range(block.startLine, 0, block.startLine, lines[block.startLine]?.length ?? 0)
   );
   let linePtr = block.startLine + 1;
   for (let s = 0; s < block.segments.length; s++) {
@@ -1287,7 +1919,7 @@ function rangesForBlock(doc, block) {
     for (const _ of seg.lines) {
       if (linePtr < lines.length) {
         bucket.push(
-          new vscode4.Range(linePtr, 0, linePtr, lines[linePtr].length)
+          new vscode6.Range(linePtr, 0, linePtr, lines[linePtr].length)
         );
       }
       linePtr += 1;
@@ -1295,21 +1927,21 @@ function rangesForBlock(doc, block) {
     if (s < block.segments.length - 1) {
       if (linePtr < lines.length && lines[linePtr].startsWith("======= begin ")) {
         headers.push(
-          new vscode4.Range(linePtr, 0, linePtr, lines[linePtr].length)
+          new vscode6.Range(linePtr, 0, linePtr, lines[linePtr].length)
         );
         linePtr += 1;
       }
     }
   }
   if (linePtr < lines.length && lines[linePtr].startsWith(">>>>>>> end conflict")) {
-    headers.push(new vscode4.Range(linePtr, 0, linePtr, lines[linePtr].length));
+    headers.push(new vscode6.Range(linePtr, 0, linePtr, lines[linePtr].length));
   }
   return { left, right, headers };
 }
 function decorateDocument(editor, types) {
   const doc = editor.document;
   const text = doc.getText();
-  const blocks = (0, import_core4.parseTonicConflicts)(text);
+  const blocks = (0, import_core6.parseTonicConflicts)(text);
   const left = [];
   const right = [];
   const headers = [];
@@ -1319,49 +1951,92 @@ function decorateDocument(editor, types) {
     right.push(...r.right);
     headers.push(...r.headers);
   }
-  editor.setDecorations(types.left, left);
-  editor.setDecorations(types.right, right);
+  const semanticLeft = collectSemanticRanges(doc, blocks, 0);
+  const semanticRight = collectSemanticRanges(doc, blocks, 1);
+  if (semanticLeft.size === 0 && semanticRight.size === 0) {
+    editor.setDecorations(types.left, left);
+    editor.setDecorations(types.right, right);
+  } else {
+    editor.setDecorations(types.left, []);
+    editor.setDecorations(types.right, []);
+    const merged = /* @__PURE__ */ new Map();
+    for (const [color, ranges] of [...semanticLeft.entries(), ...semanticRight.entries()]) {
+      merged.set(color, [...merged.get(color) ?? [], ...ranges]);
+    }
+    applySemanticDecorations(editor, merged);
+  }
   editor.setDecorations(types.header, headers);
+}
+var dynamicDecorationTypes = [];
+function collectSemanticRanges(doc, blocks, parity) {
+  const byColor = /* @__PURE__ */ new Map();
+  for (const block of blocks) {
+    const rangeSet = rangesForBlock(doc, block);
+    const ranges = parity === 0 ? rangeSet.left : rangeSet.right;
+    if (ranges.length === 0) {
+      continue;
+    }
+    const segment = block.segments.find((_, idx) => idx % 2 === parity);
+    const color = semanticColorForLabel(segment?.label ?? block.kind);
+    if (!color) {
+      continue;
+    }
+    byColor.set(color, [...byColor.get(color) ?? [], ...ranges]);
+  }
+  return byColor;
+}
+function applySemanticDecorations(editor, byColor) {
+  while (dynamicDecorationTypes.length > 0) {
+    dynamicDecorationTypes.pop()?.dispose();
+  }
+  for (const [color, ranges] of byColor.entries()) {
+    const type = vscode6.window.createTextEditorDecorationType({
+      backgroundColor: color,
+      isWholeLine: true
+    });
+    dynamicDecorationTypes.push(type);
+    editor.setDecorations(type, ranges);
+  }
 }
 
 // src/mergeEditorIntegration.ts
-var vscode5 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 async function openInMergeEditor(uri) {
   const mergeCommand = "merge.mergeEditor.openFromResource";
-  const available = await vscode5.commands.getCommands(true);
+  const available = await vscode7.commands.getCommands(true);
   if (!available.includes(mergeCommand)) {
-    const pick = await vscode5.window.showInformationMessage(
+    const pick = await vscode7.window.showInformationMessage(
       "Merge editor command is unavailable in this workspace. Open file and jump to next Tonic conflict?",
       "Open file",
       "Open + Next conflict"
     );
-    await vscode5.window.showTextDocument(uri);
+    await vscode7.window.showTextDocument(uri);
     if (pick === "Open + Next conflict") {
-      await vscode5.commands.executeCommand("tonic.jumpNextConflict");
+      await vscode7.commands.executeCommand("tonic.jumpNextConflict");
     }
     return;
   }
   try {
-    await vscode5.commands.executeCommand(mergeCommand, uri);
+    await vscode7.commands.executeCommand(mergeCommand, uri);
   } catch {
-    const pick = await vscode5.window.showInformationMessage(
+    const pick = await vscode7.window.showInformationMessage(
       "Could not open merge editor for this file. Open file and jump to next Tonic conflict?",
       "Open file",
       "Open + Next conflict"
     );
-    await vscode5.window.showTextDocument(uri);
+    await vscode7.window.showTextDocument(uri);
     if (pick === "Open + Next conflict") {
-      await vscode5.commands.executeCommand("tonic.jumpNextConflict");
+      await vscode7.commands.executeCommand("tonic.jumpNextConflict");
     }
   }
 }
 
 // src/conflictTreeView.ts
-var vscode6 = __toESM(require("vscode"));
-var import_core5 = __toESM(require_dist());
+var vscode8 = __toESM(require("vscode"));
+var import_core7 = __toESM(require_dist());
 var ConflictTreeProvider = class {
   _doc;
-  _onDidChange = new vscode6.EventEmitter();
+  _onDidChange = new vscode8.EventEmitter();
   onDidChangeTreeData = this._onDidChange.event;
   setDocument(doc) {
     this._doc = doc;
@@ -1377,13 +2052,21 @@ var ConflictTreeProvider = class {
     if (!this._doc) {
       return [];
     }
-    const blocks = (0, import_core5.parseTonicConflicts)(this._doc.getText());
-    return blocks.map(
-      (b, i) => new ConflictItem((0, import_core5.conflictSummary)(b), b.startLine, i, vscode6.TreeItemCollapsibleState.None)
-    );
+    const blocks = (0, import_core7.parseTonicConflicts)(this._doc.getText());
+    return blocks.map((b, i) => {
+      const meta = (0, import_core7.parseConflictLabel)(b.kind);
+      const author = meta.tags.author ? ` | author:${meta.tags.author}` : "";
+      const intent = meta.tags.intent ? ` | intent:${meta.tags.intent}` : "";
+      return new ConflictItem(
+        `${(0, import_core7.conflictSummary)(b)}${author}${intent}`,
+        b.startLine,
+        i,
+        vscode8.TreeItemCollapsibleState.None
+      );
+    });
   }
 };
-var ConflictItem = class extends vscode6.TreeItem {
+var ConflictItem = class extends vscode8.TreeItem {
   constructor(label, startLine, idx, state) {
     super(label, state);
     this.startLine = startLine;
@@ -1392,18 +2075,18 @@ var ConflictItem = class extends vscode6.TreeItem {
       title: "Jump",
       arguments: [startLine]
     };
-    this.iconPath = new vscode6.ThemeIcon("warning");
+    this.iconPath = new vscode8.ThemeIcon("warning");
   }
 };
 
 // src/commands/resolveActions.ts
-var vscode7 = __toESM(require("vscode"));
-var import_core6 = __toESM(require_dist());
+var vscode9 = __toESM(require("vscode"));
+var import_core8 = __toESM(require_dist());
 function findBlockAtLine(blocks, line) {
   return blocks.find((b) => b.startLine === line) ?? blocks[0];
 }
 async function keepLeft(editor, startLine) {
-  const blocks = (0, import_core6.parseTonicConflicts)(editor.document.getText());
+  const blocks = (0, import_core8.parseTonicConflicts)(editor.document.getText());
   const b = findBlockAtLine(blocks, startLine);
   if (!b) {
     return;
@@ -1412,7 +2095,7 @@ async function keepLeft(editor, startLine) {
   await replaceBlock(editor, b.startLine, b.endLine, leftText);
 }
 async function keepRight(editor, startLine) {
-  const blocks = (0, import_core6.parseTonicConflicts)(editor.document.getText());
+  const blocks = (0, import_core8.parseTonicConflicts)(editor.document.getText());
   const b = findBlockAtLine(blocks, startLine);
   if (!b || b.segments.length < 2) {
     return;
@@ -1421,7 +2104,7 @@ async function keepRight(editor, startLine) {
   await replaceBlock(editor, b.startLine, b.endLine, rightText);
 }
 async function keepBoth(editor, startLine) {
-  const blocks = (0, import_core6.parseTonicConflicts)(editor.document.getText());
+  const blocks = (0, import_core8.parseTonicConflicts)(editor.document.getText());
   const b = findBlockAtLine(blocks, startLine);
   if (!b) {
     return;
@@ -1430,7 +2113,7 @@ async function keepBoth(editor, startLine) {
   await replaceBlock(editor, b.startLine, b.endLine, parts.join("\n"));
 }
 async function applyResolvedLines(editor, startLine, resolvedLines) {
-  const blocks = (0, import_core6.parseTonicConflicts)(editor.document.getText());
+  const blocks = (0, import_core8.parseTonicConflicts)(editor.document.getText());
   const b = findBlockAtLine(blocks, startLine);
   if (!b) {
     return false;
@@ -1439,16 +2122,16 @@ async function applyResolvedLines(editor, startLine, resolvedLines) {
   return true;
 }
 async function replaceBlock(editor, startLine, endLine, newBody) {
-  const start = new vscode7.Position(startLine, 0);
-  const end = new vscode7.Position(endLine, editor.document.lineAt(endLine).text.length);
-  const range = new vscode7.Range(start, end);
+  const start = new vscode9.Position(startLine, 0);
+  const end = new vscode9.Position(endLine, editor.document.lineAt(endLine).text.length);
+  const range = new vscode9.Range(start, end);
   await editor.edit((eb) => eb.replace(range, newBody));
 }
 
 // src/agentIntegration.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 var import_node_child_process = require("node:child_process");
-var import_core7 = __toESM(require_dist());
+var import_core10 = __toESM(require_dist());
 
 // src/importContext.ts
 var lastReport;
@@ -1465,6 +2148,7 @@ function getLastImportedContext() {
 }
 
 // src/promptTemplates.ts
+var import_core9 = __toESM(require_dist());
 var ENHANCED_SYSTEM_PROMPT = `You are an expert specializing in Tonic-style merge conflicts.
 Interpret left (base) vs right (head) by meaning. Conflict kinds label how each side changed; resolve with semantic understanding.`;
 var CHAT_OUTPUT_JSON_INSTRUCTIONS = `You MUST respond with a single JSON object only, no markdown fences, using this shape: {"resolved_lines":["each output line"],"rationale":"one short sentence"}. Each resolved_lines entry is one logical line (no embedded newlines).`;
@@ -1487,6 +2171,11 @@ function buildHydratedConflictPrompt(params) {
     ...contextMentions(params.workspaceRelativePath, contextFormat),
     ...typeof params.conflictStartLine === "number" && typeof params.conflictEndLine === "number" ? [`Conflict range (1-based lines): ${params.conflictStartLine}-${params.conflictEndLine}`] : [],
     `Conflict kind: ${params.conflictKind}`,
+    ...(() => {
+      const parsed = (0, import_core9.parseConflictLabel)(params.conflictKind);
+      const tags = Object.entries(parsed.tags).map(([k, v]) => `${k}=${v}`);
+      return tags.length ? [`Conflict tags: ${tags.join(", ")}`] : [];
+    })(),
     `--- Left (base) ---`,
     params.leftHunk || "(empty)",
     `--- Right (head) ---`,
@@ -1539,12 +2228,12 @@ function providerToContextFormat(provider) {
   }
 }
 function buildFullPrompt(editor, provider, startLine) {
-  const blocks = (0, import_core7.parseTonicConflicts)(editor.document.getText());
+  const blocks = (0, import_core10.parseTonicConflicts)(editor.document.getText());
   const b = blocks.find((x) => x.startLine === startLine) ?? blocks[0];
   if (!b) {
     throw new Error("No Tonic conflict block found.");
   }
-  const wsRel = vscode8.workspace.asRelativePath(editor.document.uri, false);
+  const wsRel = vscode10.workspace.asRelativePath(editor.document.uri, false);
   const leftHunk = b.segments[0]?.lines.join("\n") ?? "";
   const rightHunk = b.segments[1]?.lines.join("\n") ?? "";
   const ctx = getLastImportedContext();
@@ -1576,7 +2265,7 @@ ${user}`;
   return { prompt: full, line: b.startLine };
 }
 async function runCustomCli(prompt) {
-  const cfg = vscode8.workspace.getConfiguration("tonic");
+  const cfg = vscode10.workspace.getConfiguration("tonic");
   const command = cfg.get("agent.customCli.command", "").trim();
   const timeoutMs = cfg.get("agent.customCli.timeoutMs", 3e4);
   if (!command) {
@@ -1584,7 +2273,7 @@ async function runCustomCli(prompt) {
   }
   return await new Promise((resolve, reject) => {
     const child = (0, import_node_child_process.spawn)(command, {
-      cwd: vscode8.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      cwd: vscode10.workspace.workspaceFolders?.[0]?.uri.fsPath,
       shell: true,
       stdio: "pipe"
     });
@@ -1619,12 +2308,12 @@ async function runCustomCli(prompt) {
   });
 }
 async function resolveWithProvider(editor, startLine) {
-  const cfg = vscode8.workspace.getConfiguration("tonic");
+  const cfg = vscode10.workspace.getConfiguration("tonic");
   const provider = cfg.get("agent.provider", "clipboard") ?? "clipboard";
   const { prompt, line } = buildFullPrompt(editor, provider, startLine);
   if (provider === "clipboard" || provider === "cursor" || provider === "copilot") {
-    await vscode8.env.clipboard.writeText(prompt);
-    await vscode8.window.showInformationMessage(
+    await vscode10.env.clipboard.writeText(prompt);
+    await vscode10.window.showInformationMessage(
       "Tonic: hydrated prompt copied. Paste into your chat/agent and apply returned JSON."
     );
     return;
@@ -1636,7 +2325,7 @@ async function resolveWithProvider(editor, startLine) {
     if (!applied) {
       throw new Error("Could not apply resolved_lines to conflict block.");
     }
-    await vscode8.window.showInformationMessage(
+    await vscode10.window.showInformationMessage(
       parsed.rationale ? `Tonic: agent resolution applied. ${parsed.rationale}` : "Tonic: agent resolution applied."
     );
     return;
@@ -1663,21 +2352,11 @@ function normalizeFileLines(text) {
   return lines.length && lines[lines.length - 1] === "" ? lines.slice(0, -1) : lines;
 }
 async function pickOneFile(title) {
-  const uris = await vscode9.window.showOpenDialog({
+  const uris = await vscode11.window.showOpenDialog({
     canSelectMany: false,
     openLabel: title
   });
   return uris?.[0];
-}
-function regionsJsonToCore2(regions) {
-  return (regions ?? []).map((r) => ({
-    baseContent: r.base_content ?? "",
-    leftContent: r.left_content ?? "",
-    rightContent: r.right_content ?? "",
-    startLine: r.start_line,
-    endLine: r.end_line,
-    conflictKind: r.conflict_kind
-  }));
 }
 function blameSummary(f) {
   const left = f.left_commit_id ? f.left_commit_id.slice(0, 12) : "";
@@ -1695,8 +2374,8 @@ function activate(context) {
       return void 0;
     }
     try {
-      const uri = vscode9.Uri.file(last);
-      await vscode9.workspace.fs.stat(uri);
+      const uri = vscode11.Uri.file(last);
+      await vscode11.workspace.fs.stat(uri);
       return uri;
     } catch {
       return void 0;
@@ -1707,13 +2386,13 @@ function activate(context) {
   const codeLens = new TonicCodeLensProvider();
   const tree = new ConflictTreeProvider();
   context.subscriptions.push(
-    vscode9.languages.registerCodeLensProvider({ scheme: "file" }, codeLens)
+    vscode11.languages.registerCodeLensProvider({ scheme: "file" }, codeLens)
   );
   context.subscriptions.push(
-    vscode9.window.registerTreeDataProvider("tonic.conflicts", tree)
+    vscode11.window.registerTreeDataProvider("tonic.conflicts", tree)
   );
   const refresh = () => {
-    const ed = vscode9.window.activeTextEditor;
+    const ed = vscode11.window.activeTextEditor;
     if (ed && decorationTypes) {
       decorateDocument(ed, decorationTypes);
     }
@@ -1721,18 +2400,25 @@ function activate(context) {
     codeLens.refresh();
   };
   context.subscriptions.push(
-    vscode9.window.onDidChangeActiveTextEditor(() => refresh())
+    vscode11.window.onDidChangeActiveTextEditor(() => refresh())
   );
   context.subscriptions.push(
-    vscode9.workspace.onDidChangeTextDocument((e) => {
-      if (e.document === vscode9.window.activeTextEditor?.document) {
+    vscode11.workspace.onDidChangeTextDocument((e) => {
+      if (e.document === vscode11.window.activeTextEditor?.document) {
         refresh();
       }
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.keepLeft", async (line) => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("tonic")) {
+        refresh();
+      }
+    })
+  );
+  context.subscriptions.push(
+    vscode11.commands.registerCommand("tonic.keepLeft", async (line) => {
+      const ed = vscode11.window.activeTextEditor;
       if (ed) {
         await keepLeft(ed, line ?? ed.selection.active.line);
         refresh();
@@ -1740,8 +2426,8 @@ function activate(context) {
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.keepRight", async (line) => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.keepRight", async (line) => {
+      const ed = vscode11.window.activeTextEditor;
       if (ed) {
         await keepRight(ed, line ?? ed.selection.active.line);
         refresh();
@@ -1749,8 +2435,8 @@ function activate(context) {
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.keepBoth", async (line) => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.keepBoth", async (line) => {
+      const ed = vscode11.window.activeTextEditor;
       if (ed) {
         await keepBoth(ed, line ?? ed.selection.active.line);
         refresh();
@@ -1758,7 +2444,7 @@ function activate(context) {
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.acceptDeterministic", async () => {
+    vscode11.commands.registerCommand("tonic.acceptDeterministic", async () => {
       const leftUri = await pickOneFile("Left snapshot");
       if (!leftUri) {
         return;
@@ -1767,32 +2453,32 @@ function activate(context) {
       if (!rightUri) {
         return;
       }
-      const leftBuf = await vscode9.workspace.fs.readFile(leftUri);
-      const rightBuf = await vscode9.workspace.fs.readFile(rightUri);
+      const leftBuf = await vscode11.workspace.fs.readFile(leftUri);
+      const rightBuf = await vscode11.workspace.fs.readFile(rightUri);
       const left = normalizeFileLines(Buffer.from(leftBuf).toString("utf8"));
       const right = normalizeFileLines(Buffer.from(rightBuf).toString("utf8"));
-      const [, annotated] = (0, import_core8.mergeSnapshots)(left, right);
-      const doc = await vscode9.workspace.openTextDocument({
+      const [, annotated] = (0, import_core11.mergeSnapshots)(left, right);
+      const doc = await vscode11.workspace.openTextDocument({
         content: annotated.join("\n"),
         language: "plaintext"
       });
-      await vscode9.window.showTextDocument(doc, { preview: false });
-      await vscode9.window.showInformationMessage(
+      await vscode11.window.showTextDocument(doc, { preview: false });
+      await vscode11.window.showInformationMessage(
         "Tonic: deterministic merge (from @mergetonic/core) opened as a new document with markers."
       );
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.openMergeEditor", async () => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.openMergeEditor", async () => {
+      const ed = vscode11.window.activeTextEditor;
       if (ed) {
         await openInMergeEditor(ed.document.uri);
       }
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.resolveWithAgent", async (line) => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.resolveWithAgent", async (line) => {
+      const ed = vscode11.window.activeTextEditor;
       if (!ed) {
         return;
       }
@@ -1801,23 +2487,23 @@ function activate(context) {
         refresh();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        await vscode9.window.showErrorMessage(`Tonic agent resolve failed: ${msg}`);
+        await vscode11.window.showErrorMessage(`Tonic agent resolve failed: ${msg}`);
       }
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.resolveWithAI", async (line) => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.resolveWithAI", async (line) => {
+      const ed = vscode11.window.activeTextEditor;
       if (!ed) {
         return;
       }
-      const blocks = (0, import_core8.parseTonicConflicts)(ed.document.getText());
+      const blocks = (0, import_core11.parseTonicConflicts)(ed.document.getText());
       const b = blocks.find((x) => x.startLine === line) ?? blocks[0];
       if (!b) {
-        await vscode9.window.showInformationMessage("Tonic: no conflict block found.");
+        await vscode11.window.showInformationMessage("Tonic: no conflict block found.");
         return;
       }
-      const wsRel = vscode9.workspace.asRelativePath(ed.document.uri, false);
+      const wsRel = vscode11.workspace.asRelativePath(ed.document.uri, false);
       const leftHunk = b.segments[0]?.lines.join("\n") ?? "";
       const rightHunk = b.segments[1]?.lines.join("\n") ?? "";
       const ctx = getLastImportedContext();
@@ -1846,64 +2532,64 @@ function activate(context) {
 ${CHAT_OUTPUT_JSON_INSTRUCTIONS}
 
 ${user}`;
-      await vscode9.env.clipboard.writeText(full);
-      await vscode9.window.showInformationMessage(
+      await vscode11.env.clipboard.writeText(full);
+      await vscode11.window.showInformationMessage(
         "Tonic: hydrated prompt copied \u2014 paste into Cursor / VS Code Chat (JSON output matches agent contract)."
       );
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.jumpNextConflict", () => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.jumpNextConflict", () => {
+      const ed = vscode11.window.activeTextEditor;
       if (!ed) {
         return;
       }
-      const blocks = (0, import_core8.parseTonicConflicts)(ed.document.getText());
+      const blocks = (0, import_core11.parseTonicConflicts)(ed.document.getText());
       const cur = ed.selection.active.line;
       const next = blocks.find((b) => b.startLine > cur) ?? blocks[0];
       if (next) {
-        const pos = new vscode9.Position(next.startLine, 0);
-        ed.selection = new vscode9.Selection(pos, pos);
-        ed.revealRange(new vscode9.Range(pos, pos));
+        const pos = new vscode11.Position(next.startLine, 0);
+        ed.selection = new vscode11.Selection(pos, pos);
+        ed.revealRange(new vscode11.Range(pos, pos));
       }
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.jumpToLine", (ln) => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.jumpToLine", (ln) => {
+      const ed = vscode11.window.activeTextEditor;
       if (ed) {
-        const pos = new vscode9.Position(ln, 0);
-        ed.selection = new vscode9.Selection(pos, pos);
-        ed.revealRange(new vscode9.Range(pos, pos));
+        const pos = new vscode11.Position(ln, 0);
+        ed.selection = new vscode11.Selection(pos, pos);
+        ed.revealRange(new vscode11.Range(pos, pos));
       }
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.gitConflictsToTonicPreview", async () => {
-      const ed = vscode9.window.activeTextEditor;
+    vscode11.commands.registerCommand("tonic.gitConflictsToTonicPreview", async () => {
+      const ed = vscode11.window.activeTextEditor;
       if (!ed) {
         return;
       }
       const text = ed.document.getText();
-      if (!(0, import_core8.hasGitConflictMarkers)(text)) {
-        await vscode9.window.showInformationMessage("Tonic: no Git conflict markers in this file.");
+      if (!(0, import_core11.hasGitConflictMarkers)(text)) {
+        await vscode11.window.showInformationMessage("Tonic: no Git conflict markers in this file.");
         return;
       }
-      const blocks = (0, import_core8.parseGitConflicts)(text);
-      const lines = (0, import_core8.gitConflictBlocksToTonicAnnotatedPreview)(blocks);
-      const doc = await vscode9.workspace.openTextDocument({
+      const blocks = (0, import_core11.parseGitConflicts)(text);
+      const lines = (0, import_core11.gitConflictBlocksToTonicAnnotatedPreview)(blocks);
+      const doc = await vscode11.workspace.openTextDocument({
         content: lines.join("\n"),
         language: "plaintext"
       });
-      await vscode9.window.showTextDocument(doc, { preview: true });
-      await vscode9.window.showInformationMessage(
+      await vscode11.window.showTextDocument(doc, { preview: true });
+      await vscode11.window.showInformationMessage(
         "Tonic: opened Tonic-style preview from Git markers (read-only buffer)."
       );
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.applyMergeReportToWorkspace", async () => {
-      const uris = await vscode9.window.showOpenDialog({
+    vscode11.commands.registerCommand("tonic.applyMergeReportToWorkspace", async () => {
+      const uris = await vscode11.window.showOpenDialog({
         canSelectMany: false,
         filters: { JSON: ["json"] },
         openLabel: "Select merge report"
@@ -1913,10 +2599,10 @@ ${user}`;
       }
       let text;
       try {
-        text = Buffer.from(await vscode9.workspace.fs.readFile(uris[0])).toString("utf8");
+        text = Buffer.from(await vscode11.workspace.fs.readFile(uris[0])).toString("utf8");
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        await vscode9.window.showErrorMessage(`Tonic: could not read report: ${msg}`);
+        await vscode11.window.showErrorMessage(`Tonic: could not read report: ${msg}`);
         return;
       }
       try {
@@ -1925,12 +2611,12 @@ ${user}`;
           (f) => f.markers_present && ((f.annotated_lines?.length ?? 0) > 0 || (f.conflict_regions?.length ?? 0) > 0)
         );
         if (!candidates.length) {
-          await vscode9.window.showInformationMessage(
+          await vscode11.window.showInformationMessage(
             "Tonic: no conflicted files with marker data in this report."
           );
           return;
         }
-        const picked = await vscode9.window.showQuickPick(
+        const picked = await vscode11.window.showQuickPick(
           candidates.map((f) => ({
             label: f.path,
             description: `${f.conflict_regions?.length ?? 0} region(s)${blameSummary(f)}`,
@@ -1944,14 +2630,14 @@ ${user}`;
         await applyArtifactToWorkspace(report, picked.artifact);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        await vscode9.window.showErrorMessage(`Tonic: ${msg}`);
+        await vscode11.window.showErrorMessage(`Tonic: ${msg}`);
       }
     })
   );
   context.subscriptions.push(
-    vscode9.commands.registerCommand("tonic.importMergeReport", async () => {
-      const globHint = vscode9.workspace.getConfiguration("tonic").get("defaultReportGlob");
-      const choice = await vscode9.window.showQuickPick(
+    vscode11.commands.registerCommand("tonic.importMergeReport", async () => {
+      const globHint = vscode11.workspace.getConfiguration("tonic").get("defaultReportGlob");
+      const choice = await vscode11.window.showQuickPick(
         ["Open JSON file", "Paste JSON", "Re-open last report file"],
         {
           title: "Import Tonic merge report",
@@ -1961,7 +2647,7 @@ ${user}`;
       let text;
       if (choice === "Open JSON file") {
         const defaultUri = await tryOpenLastReportPath();
-        const uris = await vscode9.window.showOpenDialog({
+        const uris = await vscode11.window.showOpenDialog({
           canSelectMany: false,
           defaultUri: defaultUri ?? void 0,
           filters: { JSON: ["json"] },
@@ -1971,16 +2657,16 @@ ${user}`;
           return;
         }
         await context.workspaceState.update("tonic.lastReportJsonPath", uris[0].fsPath);
-        text = Buffer.from(await vscode9.workspace.fs.readFile(uris[0])).toString("utf8");
+        text = Buffer.from(await vscode11.workspace.fs.readFile(uris[0])).toString("utf8");
       } else if (choice === "Re-open last report file") {
         const uri = await tryOpenLastReportPath();
         if (!uri) {
-          await vscode9.window.showInformationMessage("Tonic: no saved report path for this workspace.");
+          await vscode11.window.showInformationMessage("Tonic: no saved report path for this workspace.");
           return;
         }
-        text = Buffer.from(await vscode9.workspace.fs.readFile(uri)).toString("utf8");
+        text = Buffer.from(await vscode11.workspace.fs.readFile(uri)).toString("utf8");
       } else if (choice === "Paste JSON") {
-        text = await vscode9.window.showInputBox({
+        text = await vscode11.window.showInputBox({
           title: "Paste merge-tonic-report.json contents",
           ignoreFocusOut: true
         });
@@ -2002,7 +2688,7 @@ ${user}`;
           artifact: f
         }));
         if (!items.length && legacy.length) {
-          const legPick = await vscode9.window.showQuickPick(
+          const legPick = await vscode11.window.showQuickPick(
             legacy.map((f) => ({
               label: f.path,
               description: `${f.conflict_regions?.length ?? 0} region(s) \u2014 reconstruct markers`,
@@ -2027,14 +2713,14 @@ ${user}`;
             (f) => f.markers_present && !f.annotated_lines?.length
           );
           const msg = hasMarkersNoAnnotated ? "Tonic: markers_present but no annotated_lines and no conflict_regions to reconstruct. Use a current agent run." : "Tonic: no files with conflict markers in this report.";
-          await vscode9.window.showInformationMessage(msg);
+          await vscode11.window.showInformationMessage(msg);
           return;
         }
         let picked;
         if (items.length === 1) {
           picked = items[0];
         } else {
-          const multi = await vscode9.window.showQuickPick(items, {
+          const multi = await vscode11.window.showQuickPick(items, {
             title: "Open annotated merge output",
             placeHolder: "Select a file"
           });
@@ -2045,23 +2731,24 @@ ${user}`;
         }
         let body;
         if (picked.reconstructed) {
-          const regions = regionsJsonToCore2(picked.artifact.conflict_regions);
-          body = (0, import_core8.conflictRegionsToAnnotatedLines)(regions).join("\n");
+          const raw = reportRegionsToCore(picked.artifact.conflict_regions);
+          const regions = applyGitMergeReconstructDefaults(raw, readGitMergeDefaultsFromConfig());
+          body = (0, import_core11.conflictRegionsToAnnotatedLines)(regions).join("\n");
         } else {
           body = picked.artifact.annotated_lines.join("\n");
         }
         setLastImportedArtifact(report, picked.artifact);
-        const doc = await vscode9.workspace.openTextDocument({
+        const doc = await vscode11.workspace.openTextDocument({
           content: body,
           language: "plaintext"
         });
-        await vscode9.window.showTextDocument(doc, { preview: true });
-        await vscode9.window.showInformationMessage(
+        await vscode11.window.showTextDocument(doc, { preview: true });
+        await vscode11.window.showInformationMessage(
           `Tonic: opened ${picked.reconstructed ? "reconstructed" : "annotated"} output for ${picked.label} (left=base, right=head).`
         );
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        await vscode9.window.showErrorMessage(`Tonic import failed: ${msg}`);
+        await vscode11.window.showErrorMessage(`Tonic import failed: ${msg}`);
       }
     })
   );

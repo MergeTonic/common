@@ -26,7 +26,7 @@ jobs:
 
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "mtpy"') && inputs.publish_pypi == true
+    if: contains(needs.detect.outputs.matrix_json, '"id": "mtpy"') && inputs.publish_pypi == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
     runs-on: ubuntu-latest
     permissions:
       id-token: write

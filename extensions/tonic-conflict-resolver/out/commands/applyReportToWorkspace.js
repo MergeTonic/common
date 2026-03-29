@@ -36,22 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.applyArtifactToWorkspace = applyArtifactToWorkspace;
 const vscode = __importStar(require("vscode"));
 const core_1 = require("@mergetonic/core");
-function regionsJsonToCore(regions) {
-    return (regions ?? []).map((r) => ({
-        baseContent: r.base_content ?? "",
-        leftContent: r.left_content ?? "",
-        rightContent: r.right_content ?? "",
-        startLine: r.start_line,
-        endLine: r.end_line,
-        conflictKind: r.conflict_kind,
-    }));
-}
+const gitMergeReconstruct_1 = require("../gitMergeReconstruct");
 function artifactBody(a) {
     if (a.annotated_lines?.length) {
         return a.annotated_lines.join("\n");
     }
-    const regions = regionsJsonToCore(a.conflict_regions);
-    if (regions.length) {
+    const raw = (0, gitMergeReconstruct_1.reportRegionsToCore)(a.conflict_regions);
+    if (raw.length) {
+        const regions = (0, gitMergeReconstruct_1.applyGitMergeReconstructDefaults)(raw, (0, gitMergeReconstruct_1.readGitMergeDefaultsFromConfig)());
         return (0, core_1.conflictRegionsToAnnotatedLines)(regions).join("\n");
     }
     return null;

@@ -10,14 +10,8 @@ from typing import Any
 from .. import env_config
 from ..ai_provider import AIProviderConfig, AIResponse, TokenUsage
 from ..models import ConflictFile, ConflictRegion
+from .. import prompt_bundle
 from ..prompt_engineering import PromptGenerator, prompt_template_from_env
-
-_GITHUB_JSON_SYSTEM_SUFFIX = (
-    "\n\nYou MUST respond with a single JSON object only, no markdown fences, "
-    'using this shape: {"resolved_lines": ["each line of the merged result"], '
-    '"rationale": "one short sentence"}. '
-    "Each element of resolved_lines must be one logical line of the file (no embedded newlines)."
-)
 
 
 class OpenAICompatibleProvider:
@@ -112,7 +106,7 @@ class OpenAICompatibleProvider:
     ) -> AIResponse:
         user = self._prompt.generate_conflict_prompt(conflict_file, conflict)
         messages = [
-            {"role": "system", "content": self._system_prompt() + _GITHUB_JSON_SYSTEM_SUFFIX},
+            {"role": "system", "content": self._system_prompt() + prompt_bundle.github_json_response_suffix()},
             {"role": "user", "content": user},
         ]
         return self._parse(self._post(messages))

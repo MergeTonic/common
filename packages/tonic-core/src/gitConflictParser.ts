@@ -65,9 +65,19 @@ export function parseGitConflictsWithDiagnostics(text: string): {
           startLine,
           endLine: i,
           kind: "git merge",
+          baseKind: "git merge",
+          tags: {},
           segments: [
-            { label: oursRef, lines: oursLines },
-            { label: theirsRef, lines: theirsLines },
+            {
+              label: oursRef,
+              lines: oursLines,
+              metadata: { raw: oursRef, baseKind: oursRef, tags: {} },
+            },
+            {
+              label: theirsRef,
+              lines: theirsLines,
+              metadata: { raw: theirsRef, baseKind: theirsRef, tags: {} },
+            },
           ],
         });
         i += 1;

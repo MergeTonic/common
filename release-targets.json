@@ -15,7 +15,11 @@
       "version_key": "vsmt",
       "sync_policy": {
         "managed_paths": ["src", "out", "package.json", "tsconfig.json", ".vscodeignore"],
-        "preserve_paths": ["README.md", ".github"]
+        "preserve_paths": ["README.md", ".github"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
       }
     },
     {
@@ -24,6 +28,7 @@
       "component": "js_action",
       "paths": [
         "agents/github-action-agent-node/**",
+        "agents/shared-tonic-ai-prompts/**",
         "target-repo-templates/js-action/**"
       ],
       "release_types": ["repo_sync", "npm", "github_action"],
@@ -32,7 +37,11 @@
       "version_key": "js_action",
       "sync_policy": {
         "managed_paths": ["src", "dist", "action.yml", "package.json", "tsconfig.json"],
-        "preserve_paths": ["README.md", ".github"]
+        "preserve_paths": ["README.md", ".github"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
       }
     },
     {
@@ -41,6 +50,7 @@
       "component": "py_action",
       "paths": [
         "agents/github-action-agent/**",
+        "agents/shared-tonic-ai-prompts/**",
         "target-repo-templates/py-action/**"
       ],
       "release_types": ["repo_sync", "pypi", "github_action"],
@@ -49,7 +59,11 @@
       "version_key": "py_action",
       "sync_policy": {
         "managed_paths": ["src", "tests", "action.yml", "pyproject.toml"],
-        "preserve_paths": ["README.md", ".github"]
+        "preserve_paths": ["README.md", ".github"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
       }
     },
     {
@@ -66,7 +80,11 @@
       "version_key": "ts_cli",
       "sync_policy": {
         "managed_paths": ["src", "dist", "package.json", "tsconfig.json"],
-        "preserve_paths": ["README.md", ".github"]
+        "preserve_paths": ["README.md", ".github"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
       }
     },
     {
@@ -83,7 +101,11 @@
       "version_key": "py_cli",
       "sync_policy": {
         "managed_paths": ["tonic", "tests", "pyproject.toml"],
-        "preserve_paths": ["README.md", ".github"]
+        "preserve_paths": ["README.md", ".github"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
       }
     },
     {
@@ -101,7 +123,11 @@
       "template_dir": "target-repo-templates/.github",
       "sync_policy": {
         "managed_paths": [".github"],
-        "preserve_paths": ["README.md"]
+        "preserve_paths": ["README.md"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
       }
     },
     {

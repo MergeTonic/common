@@ -2,9 +2,13 @@
 node_modules/
 **/node_modules/
 
+# Memory
+memory
+
 # Build output (if not committed by policy)
 dist/
 **/dist/
+**/*.egg-info
 
 # Common test/runtime outputs
 coverage/

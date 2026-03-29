@@ -7,7 +7,8 @@
     "agents/github-action-agent-node"
   ],
   "scripts": {
-    "build": "npm run build -w @mergetonic/core -w @mergetonic/github-agent && npm run compile -w merge-conflict-resolver",
-    "test": "npm run test -w @mergetonic/core && npm run test -w merge-conflict-resolver && npm run test -w @mergetonic/github-agent"
+    "sync-agent-ai-prompts": "python scripts/sync_agent_ai_prompts.py",
+    "build": "npm run sync-agent-ai-prompts && npm run build -w @mergetonic/core -w @mergetonic/github-agent && npm run compile -w merge-conflict-resolver",
+    "test": "npm run sync-agent-ai-prompts && npm run test -w @mergetonic/core && npm run test -w merge-conflict-resolver && npm run test -w @mergetonic/github-agent"
   }
 }

@@ -9,8 +9,13 @@ export interface ConflictRegionJson {
   start_line: number;
   end_line: number;
   conflict_kind: string;
+  conflict_base_kind?: string;
+  conflict_tags?: Record<string, string>;
   left_commit_ids?: string[];
   right_commit_ids?: string[];
+  /** When begin/mid Tonic marker labels differ (e.g. per-side author/intent). */
+  marker_label_begin?: string;
+  marker_label_mid?: string;
 }
 
 export interface MergeArtifactJson {

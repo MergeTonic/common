@@ -21,9 +21,13 @@ inputs:
     required: false
     default: "200"
   hydrate_mode:
-    description: pr-diff or symmetric-union
+    description: pr-diff or symmetric-union (used only when merge_engine=api)
     required: false
     default: pr-diff
+  merge_engine:
+    description: "git (default, real git merge in isolated workspace) or api"
+    required: false
+    default: git
   report_path:
     description: "VS Code Import merge report — writes JSON here; files with markers_present include annotated_lines by default (same as Python agent)."
     required: false
@@ -40,10 +44,38 @@ inputs:
     description: "true to use OpenAI-compatible API (TONIC_AGENT_OPENAI_*) for inline suggestions when keys are set"
     required: false
     default: "false"
+  prompt_template:
+    description: "Optional AI prompt template default|enhanced|context-aware (sets TONIC_AGENT_PROMPT_TEMPLATE)"
+    required: false
+    default: ""
   enable_checks:
     description: "true to post a GitHub Check run with annotations (requires checks:write)"
     required: false
     default: "false"
+  author_mode:
+    description: "git-merge hydration: base-head | human | ref (author tags on Tonic markers)"
+    required: false
+    default: "base-head"
+  author_alias_left:
+    description: "Optional explicit author tag for base (left) side"
+    required: false
+    default: ""
+  author_alias_right:
+    description: "Optional explicit author tag for head (right) side"
+    required: false
+    default: ""
+  intent_pair:
+    description: "Optional left,right intent tags, e.g. preserve_base,prefer_head"
+    required: false
+    default: ""
+  github_login_left:
+    description: "Optional GitHub login for left author tag when author_mode is not ref"
+    required: false
+    default: ""
+  github_login_right:
+    description: "Optional GitHub login for right author tag"
+    required: false
+    default: ""
   tonic_github_agent_version:
     description: "npm version of @mergetonic/github-agent when not using the mergetonic workspace"
     required: false
@@ -67,6 +99,46 @@ runs:
     - uses: actions/setup-node@v6
       with:
         node-version: "20"
+    - uses: actions/checkout@v4
+      if: ${{ inputs.merge_engine == 'git' }}
+      with:
+        fetch-depth: 0
+    - name: Capture immutable PR targets
+      shell: bash
+      run: |
+        {
+          echo "TONIC_TARGET_BASE_SHA=${{ github.event.pull_request.base.sha }}"
+          echo "TONIC_TARGET_HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+          echo "TONIC_TARGET_BASE_BRANCH=${{ github.event.pull_request.base.ref }}"
+        } >> "${GITHUB_ENV}"
+    - name: Prepare isolated git workspace
+      if: ${{ inputs.merge_engine == 'git' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        TARGET_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        TARGET_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        : "${TARGET_BASE_SHA:?missing pull_request.base.sha}"
+        : "${TARGET_HEAD_SHA:?missing pull_request.head.sha}"
+        if ! git fetch origin "${TARGET_BASE_SHA}" "${TARGET_HEAD_SHA}" --no-tags; then
+          : "${PR_NUMBER:?missing pull_request.number}"
+          git fetch origin "${TARGET_BASE_SHA}" "refs/pull/${PR_NUMBER}/head" --no-tags
+          TARGET_HEAD_SHA="$(git rev-parse FETCH_HEAD)"
+        fi
+        ISO_DIR="${RUNNER_TEMP}/tonic-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        if ! git worktree add --detach "${ISO_DIR}" "${TARGET_BASE_SHA}"; then
+          rm -rf "${ISO_DIR}"
+          git clone --no-checkout "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "${ISO_DIR}"
+          git -C "${ISO_DIR}" fetch origin "${TARGET_BASE_SHA}" "${TARGET_HEAD_SHA}" --no-tags
+          git -C "${ISO_DIR}" checkout --detach "${TARGET_BASE_SHA}"
+        fi
+        git -C "${ISO_DIR}" checkout -B "tonic/agent/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${TARGET_BASE_SHA:0:7}" "${TARGET_BASE_SHA}"
+        {
+          echo "TONIC_AGENT_ISOLATED_WORKSPACE=${ISO_DIR}"
+          echo "TONIC_TARGET_HEAD_SHA=${TARGET_HEAD_SHA}"
+        } >> "${GITHUB_ENV}"
     - id: run_agent
       name: Install and run agent
       shell: bash
@@ -78,11 +150,19 @@ runs:
         INPUT_MAX_INLINE_COMMENTS_PER_FILE: ${{ inputs.max_inline_comments_per_file }}
         INPUT_MAX_SUGGESTION_LINES: ${{ inputs.max_suggestion_lines }}
         INPUT_HYDRATE_MODE: ${{ inputs.hydrate_mode }}
+        INPUT_MERGE_ENGINE: ${{ inputs.merge_engine }}
         INPUT_ENABLE_BLAME: ${{ inputs.enable_blame }}
         INPUT_BLAME_MAX_COMMITS: ${{ inputs.blame_max_commits }}
         TONIC_AGENT_REPORT_PATH: ${{ inputs.report_path }}
         INPUT_ENABLE_AI: ${{ inputs.enable_ai }}
+        TONIC_AGENT_PROMPT_TEMPLATE: ${{ inputs.prompt_template }}
         INPUT_ENABLE_CHECKS: ${{ inputs.enable_checks }}
+        INPUT_AUTHOR_MODE: ${{ inputs.author_mode }}
+        INPUT_AUTHOR_ALIAS_LEFT: ${{ inputs.author_alias_left }}
+        INPUT_AUTHOR_ALIAS_RIGHT: ${{ inputs.author_alias_right }}
+        INPUT_INTENT_PAIR: ${{ inputs.intent_pair }}
+        INPUT_GITHUB_LOGIN_LEFT: ${{ inputs.github_login_left }}
+        INPUT_GITHUB_LOGIN_RIGHT: ${{ inputs.github_login_right }}
         GITHUB_TOKEN: ${{ inputs.token }}
         GITHUB_EVENT_PATH: ${{ github.event_path }}
         GITHUB_REPOSITORY: ${{ github.repository }}
@@ -99,4 +179,11 @@ runs:
           node "${GITHUB_ACTION_PATH}/dist/index.js"
         else
           npx --yes @mergetonic/github-agent@${TONIC_AGENT_NPM_V}
+        fi
+    - name: Cleanup isolated git workspace
+      if: ${{ always() && inputs.merge_engine == 'git' }}
+      shell: bash
+      run: |
+        if [ -n "${TONIC_AGENT_ISOLATED_WORKSPACE}" ] && [ -d "${TONIC_AGENT_ISOLATED_WORKSPACE}" ]; then
+          git worktree remove "${TONIC_AGENT_ISOLATED_WORKSPACE}" --force || rm -rf "${TONIC_AGENT_ISOLATED_WORKSPACE}"
         fi

@@ -1,2 +1,0 @@
-[console_scripts]
-manyana-agent = manyana_agent.__main__:main
