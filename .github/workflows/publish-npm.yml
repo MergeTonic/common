@@ -26,7 +26,7 @@ jobs:
 
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "tsmt"') && inputs.publish_npm == true
+    if: contains(needs.detect.outputs.matrix_json, '"id": "tsmt"') && inputs.publish_npm == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
     runs-on: ubuntu-latest
     permissions:
       contents: read

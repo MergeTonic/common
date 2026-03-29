@@ -24,7 +24,7 @@ export class TonicCodeLensProvider implements vscode.CodeLensProvider {
       );
       lenses.push(
         new vscode.CodeLens(range, {
-          title: "Prefer head (deterministic)",
+          title: "Keep Right",
           command: "tonic.keepRight",
           arguments: [b.startLine],
         })
@@ -38,8 +38,8 @@ export class TonicCodeLensProvider implements vscode.CodeLensProvider {
       );
       lenses.push(
         new vscode.CodeLens(range, {
-          title: "Resolve with Agent",
-          command: "tonic.resolveWithAgent",
+          title: "Resolve with AI",
+          command: "tonic.resolveWithAI",
           arguments: [b.startLine],
         })
       );

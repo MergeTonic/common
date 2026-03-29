@@ -9,10 +9,11 @@ const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const fixDir = path.join(repoRoot, "merge-tonic-lib", "tests", "fixtures", "cli");
 const cliJs = path.join(__dirname, "..", "cli.js");
 
-function runCli(args: string[]): { status: number | null; stdout: string; stderr: string } {
+function runCli(args: string[], env?: NodeJS.ProcessEnv): { status: number | null; stdout: string; stderr: string } {
   const r = spawnSync(process.execPath, [cliJs, ...args], {
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
+    env: env ?? { ...process.env, MERGETONIC_LICENSE_ACCEPTED: "1" },
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
@@ -220,6 +221,59 @@ test("merge positional branch helper writes markers on target branch", () => {
     assert.equal(cli.status, 0, cli.stderr);
     const text = fs.readFileSync(path.join(tmp, "foo.txt"), "utf8");
     assert.match(text, /<<<<<<< begin/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+function isolatedNoLicenseEnv(tmp: string): NodeJS.ProcessEnv {
+  const env = { ...process.env } as NodeJS.ProcessEnv;
+  delete env.MERGETONIC_LICENSE_ACCEPTED;
+  env.HOME = tmp;
+  env.USERPROFILE = tmp;
+  if (process.platform === "win32") {
+    env.APPDATA = path.join(tmp, "Roaming");
+  } else {
+    env.XDG_CONFIG_HOME = path.join(tmp, ".config");
+  }
+  return env;
+}
+
+test("merge is blocked without license acceptance", () => {
+  const left = path.join(fixDir, "left.txt");
+  const right = path.join(fixDir, "right.txt");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tonic-lic-"));
+  try {
+    const { status, stderr } = runCli(["merge", "--left", left, "--right", right], isolatedNoLicenseEnv(tmp));
+    assert.notEqual(status, 0);
+    assert.match(stderr.toLowerCase(), /accept-license/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("--help works without license", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tonic-lic-h-"));
+  try {
+    const { status, stderr } = runCli(["--help"], isolatedNoLicenseEnv(tmp));
+    assert.equal(status, 0);
+    assert.match(stderr, /merge-tonic/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("accept-license then merge succeeds", () => {
+  const left = path.join(fixDir, "left.txt");
+  const right = path.join(fixDir, "right.txt");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tonic-lic-acc-"));
+  try {
+    const env = isolatedNoLicenseEnv(tmp);
+    const acc = runCli(["accept-license"], env);
+    assert.equal(acc.status, 0, acc.stderr);
+    const { status, stdout } = runCli(["merge", "--left", left, "--right", right], env);
+    assert.equal(status, 0);
+    assert.match(stdout, /<<<<<<< begin/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

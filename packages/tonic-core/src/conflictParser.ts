@@ -1,12 +1,22 @@
+import { parseConflictLabel, type ConflictLabelMetadata } from "./markerLabel";
+
 /**
  * Parse Tonic annotated conflict markers.
  */
+
+export interface ConflictSegment {
+  label: string;
+  lines: string[];
+  metadata: ConflictLabelMetadata;
+}
 
 export interface ConflictBlock {
   startLine: number;
   endLine: number;
   kind: string;
-  segments: { label: string; lines: string[] }[];
+  baseKind: string;
+  tags: Record<string, string>;
+  segments: ConflictSegment[];
 }
 
 const BEGIN = /^<<<<<<< begin (.+)$/;
@@ -34,19 +44,26 @@ export function parseTonicConflictsWithDiagnostics(text: string): {
     }
     const startLine = i;
     const kind = bm[1]!.trim();
+    const parsedKind = parseConflictLabel(kind);
     i += 1;
-    const segments: { label: string; lines: string[] }[] = [];
+    const segments: ConflictSegment[] = [];
     let currentLabel = kind;
     let current: string[] = [];
     let closed = false;
     while (i < lines.length) {
       const line = lines[i]!;
       if (END.test(line)) {
-        segments.push({ label: currentLabel, lines: current });
+        segments.push({
+          label: currentLabel,
+          lines: current,
+          metadata: parseConflictLabel(currentLabel),
+        });
         blocks.push({
           startLine,
           endLine: i,
           kind,
+          baseKind: parsedKind.baseKind,
+          tags: { ...parsedKind.tags },
           segments,
         });
         i += 1;
@@ -55,7 +72,11 @@ export function parseTonicConflictsWithDiagnostics(text: string): {
       }
       const mm = MID.exec(line);
       if (mm) {
-        segments.push({ label: currentLabel, lines: current });
+        segments.push({
+          label: currentLabel,
+          lines: current,
+          metadata: parseConflictLabel(currentLabel),
+        });
         currentLabel = mm[1]!.trim();
         current = [];
         i += 1;

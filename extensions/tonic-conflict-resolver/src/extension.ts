@@ -6,7 +6,6 @@ import {
   mergeSnapshots,
   parseGitConflicts,
   parseTonicConflicts,
-  type ConflictRegion,
 } from "@mergetonic/core";
 import { applyArtifactToWorkspace } from "./commands/applyReportToWorkspace";
 import { registerTonicDiagnostics } from "./diagnosticsProvider";
@@ -17,7 +16,12 @@ import { ConflictTreeProvider } from "./conflictTreeView";
 import * as resolveActions from "./commands/resolveActions";
 import { resolveWithProvider } from "./agentIntegration";
 import { getLastImportedContext, setLastImportedArtifact } from "./importContext";
-import type { ConflictRegionJson, MergeArtifactJson } from "./mergeReport";
+import {
+  applyGitMergeReconstructDefaults,
+  readGitMergeDefaultsFromConfig,
+  reportRegionsToCore,
+} from "./gitMergeReconstruct";
+import type { MergeArtifactJson } from "./mergeReport";
 import { parseMergeReportJson } from "./mergeReport";
 import {
   CHAT_OUTPUT_JSON_INSTRUCTIONS,
@@ -36,17 +40,6 @@ async function pickOneFile(title: string): Promise<vscode.Uri | undefined> {
     openLabel: title,
   });
   return uris?.[0];
-}
-
-function regionsJsonToCore(regions: ConflictRegionJson[] | undefined): ConflictRegion[] {
-  return (regions ?? []).map((r) => ({
-    baseContent: r.base_content ?? "",
-    leftContent: r.left_content ?? "",
-    rightContent: r.right_content ?? "",
-    startLine: r.start_line,
-    endLine: r.end_line,
-    conflictKind: r.conflict_kind,
-  }));
 }
 
 function blameSummary(f: MergeArtifactJson): string {
@@ -104,6 +97,13 @@ export function activate(context: vscode.ExtensionContext): void {
         refresh();
       }
     })
+  );
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("tonic")) {
+        refresh();
+      }
+    }),
   );
 
   context.subscriptions.push(
@@ -430,7 +430,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
         let body: string;
         if (picked.reconstructed) {
-          const regions = regionsJsonToCore(picked.artifact.conflict_regions);
+          const raw = reportRegionsToCore(picked.artifact.conflict_regions);
+          const regions = applyGitMergeReconstructDefaults(raw, readGitMergeDefaultsFromConfig());
           body = conflictRegionsToAnnotatedLines(regions).join("\n");
         } else {
           body = picked.artifact.annotated_lines!.join("\n");

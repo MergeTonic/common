@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "policy_version": "2026-03-27.1",
+  "last_updated_at": "2026-03-27T00:00:00Z",
+  "records": [
+    {
+      "github_login": "Josephrp",
+      "accepted_contributing_at": "2026-03-27T00:00:00Z",
+      "accepted_license_at": "2026-03-27T00:00:00Z",
+      "accepted_policy_version": "2026-03-27.1",
+      "accepted_via": "maintainer_seed",
+      "source_repo": "mergetonic/common",
+      "source_pr": "",
+      "active": true
+    }
+  ]
+}

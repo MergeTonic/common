@@ -24,7 +24,17 @@ def annotated_to_conflict_file(path: str, annotated_lines: list[str]) -> Conflic
             start_line=c.start_line,
             end_line=c.end_line,
             conflict_kind=c.conflict_kind,
+            conflict_base_kind=getattr(c, "conflict_base_kind", "") or "",
+            conflict_tags=getattr(c, "conflict_tags", {}) or {},
+            marker_label_begin=getattr(c, "marker_label_begin", "") or "",
+            marker_label_mid=getattr(c, "marker_label_mid", "") or "",
         )
         for c in raw.conflicts
     ]
-    return ConflictFile(path=raw.path, conflicts=conflicts, content=raw.content)
+    return ConflictFile(
+        path=raw.path,
+        conflicts=conflicts,
+        content=raw.content,
+        left_label=getattr(raw, "left_label", "left") or "left",
+        right_label=getattr(raw, "right_label", "right") or "right",
+    )

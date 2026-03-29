@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from tonic.conflict_parser import parse_tonic_conflicts_with_diagnostics
+from tonic.license_cli import LICENSE_GATE_MESSAGE, cmd_accept_license, license_accepted
 from tonic.merge_utils import (
     annotated_to_conflict_file,
     apply_tonic_heuristic,
@@ -284,11 +285,7 @@ def cmd_github(args: argparse.Namespace) -> int:
     return 1
 
 
-def main(argv: list[str] | None = None) -> int:
-    argv = argv if argv is not None else sys.argv[1:]
-    if argv and argv[0] in {"merge-tonic", "tonic-merge", "mt"}:
-        argv = argv[1:]
-
+def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="merge-tonic")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -429,6 +426,30 @@ def main(argv: list[str] | None = None) -> int:
     gh_create.add_argument("--ref", required=True)
     gh_create.add_argument("--sha", required=True)
     gh_create.set_defaults(func=cmd_github)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(argv if argv is not None else sys.argv[1:])
+    if argv and argv[0] in {"merge-tonic", "tonic-merge", "mt"}:
+        argv = argv[1:]
+
+    if not license_accepted():
+        if argv and argv[0] == "accept-license":
+            return cmd_accept_license()
+        if not argv or argv[0] in ("help", "-h", "--help"):
+            _build_arg_parser().print_help()
+            return 0
+        if "-h" not in argv and "--help" not in argv:
+            print(LICENSE_GATE_MESSAGE, file=sys.stderr)
+            return 1
+
+    parser = _build_arg_parser()
+    if argv and argv[0] == "accept-license":
+        return cmd_accept_license()
+    if not argv:
+        parser.print_help()
+        return 0
 
     # Lightweight aliases for commands while avoiding accidental remaps in values.
     if argv:

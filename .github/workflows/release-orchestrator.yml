@@ -1,5 +1,9 @@
 name: Release Orchestrator
 
+concurrency:
+  group: release-orchestrator-${{ github.ref }}-${{ inputs.release_mode }}
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
     inputs:
@@ -73,12 +77,21 @@ jobs:
           js = Path("agents/github-action-agent-node/action.yml").read_text(encoding="utf-8")
           assert "using: composite" in py and "using: composite" in js
           assert "tonic_github_agent_version" in py and "tonic_github_agent_version" in js
+          for src in (py, js):
+            assert "merge_engine" in src
+            assert "TONIC_AGENT_ISOLATED_WORKSPACE" in src
+            assert "TONIC_TARGET_BASE_SHA" in src
+            assert "TONIC_TARGET_HEAD_SHA" in src
+            assert "TONIC_TARGET_BASE_BRANCH" in src
+            assert "Prepare isolated git workspace" in src
           print("action hydration contracts ok")
           PY
       - name: Validate docs governance
         run: |
           python scripts/docs/validate_doc_links.py
           python scripts/docs/validate_wiki_rendering.py
+      - name: Validate workflow guard contracts
+        run: python scripts/policy/validate_workflow_guards.py
 
   version_gate:
     runs-on: ubuntu-latest
@@ -96,7 +109,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     needs: [detect, validate, version_gate]
-    if: inputs.publish_registries == true
+    if: inputs.publish_registries == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
     permissions:
       id-token: write
       contents: read
@@ -111,6 +124,20 @@ jobs:
           python-version: "3.12"
       - name: Install build tools
         run: pip install build
+      - name: Detect selected PyPI packages
+        id: pypi_targets
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix_json }}
+        run: |
+          python - <<'PY'
+          import json, os
+          matrix = json.loads(os.environ["MATRIX"])
+          ids = {t["id"] for t in matrix.get("targets", [])}
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a", encoding="utf-8") as f:
+            f.write(f"publish_mtpy={'true' if 'mtpy' in ids else 'false'}\n")
+            f.write(f"publish_py_action={'true' if 'py-action' in ids else 'false'}\n")
+          PY
       - name: Publish selected npm packages
         env:
           MATRIX: ${{ needs.detect.outputs.matrix_json }}
@@ -133,28 +160,22 @@ jobs:
             npm run build -w @mergetonic/core -w @mergetonic/github-agent
             npm publish -w @mergetonic/github-agent --access public
           fi
-      - name: Publish selected PyPI packages
-        env:
-          MATRIX: ${{ needs.detect.outputs.matrix_json }}
-        run: |
-          python - <<'PY'
-          import json, os
-          matrix = json.loads(os.environ["MATRIX"])
-          ids = {t["id"] for t in matrix.get("targets", [])}
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
-            f.write(f"PUBLISH_MTPY={'true' if 'mtpy' in ids else 'false'}\n")
-            f.write(f"PUBLISH_PY_ACTION={'true' if 'py-action' in ids else 'false'}\n")
-          PY
-          if [ "${PUBLISH_MTPY}" = "true" ]; then
-            python -m build merge-tonic-lib
-            python -m pip install twine
-            python -m twine upload merge-tonic-lib/dist/* --non-interactive
-          fi
-          if [ "${PUBLISH_PY_ACTION}" = "true" ]; then
-            python -m build agents/github-action-agent
-            python -m pip install twine
-            python -m twine upload agents/github-action-agent/dist/* --non-interactive
-          fi
+      - name: Build mergetonic package
+        if: steps.pypi_targets.outputs.publish_mtpy == 'true'
+        run: python -m build merge-tonic-lib
+      - name: Publish mergetonic to PyPI (OIDC)
+        if: steps.pypi_targets.outputs.publish_mtpy == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: merge-tonic-lib/dist/
+      - name: Build mergetonic-github-agent package
+        if: steps.pypi_targets.outputs.publish_py_action == 'true'
+        run: python -m build agents/github-action-agent
+      - name: Publish mergetonic-github-agent to PyPI (OIDC)
+        if: steps.pypi_targets.outputs.publish_py_action == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: agents/github-action-agent/dist/
       - name: Publish VSIX targets
         env:
           MATRIX: ${{ needs.detect.outputs.matrix_json }}
@@ -220,7 +241,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     needs: [detect, verify_publish]
-    if: inputs.release_mode != 'monorepo-only'
+    if: inputs.release_mode != 'monorepo-only' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
       pull-requests: write

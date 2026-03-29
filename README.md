@@ -2,13 +2,19 @@
 
 ## Tonic PR agent vs. `git merge`
 
-The GitHub agents **do not** run `git merge` in a checkout. They use the **compare API** to fetch **base** and **head** file blobs per changed path, then run Tonic's two-snapshot weave (`mergeSnapshots`). That can differ from what Git shows after a failed merge. A future git-native workflow is sketched in [`docs/tonic-git-merge-pipeline.md`](docs/tonic-git-merge-pipeline.md).
+The GitHub agents now default to a **git-native** path: they run isolated `git merge --no-commit` in a temporary worktree and parse real merge markers into Tonic `annotated_lines` for reporting/comments. In isolated mode the agent also pushes a fresh run branch and opens a fresh PR, then publishes comments/checks against that new PR context. You can still opt into the legacy **API** path (`merge_engine=api`), which hydrates base/head via the compare/contents APIs and runs Tonic's two-snapshot weave (`mergeSnapshots`). See [`docs/tonic-git-merge-pipeline.md`](docs/tonic-git-merge-pipeline.md) for mode details and operational caveats.
 
 ## Publishable composite actions
 
 Each of [`agents/github-action-agent`](agents/github-action-agent/) (Python + `merge-tonic`) and [`agents/github-action-agent-node`](agents/github-action-agent-node/) (Node + `@mergetonic/core`) is a single composite action: hydrate -> merge -> `merge-tonic-report` JSON (with `annotated_lines` on conflicted files) -> PR summary/file/inline comments with deterministic prefer-head suggestions (`suggestion` fences when line counts match). Optional: `enable_ai` (OpenAI-compatible env), `enable_checks` (GitHub Check + annotations). Use Python or Node depending on runtime preference; behavior is aligned.
 
 Operator copy-paste: [`docs/tonic-pr-agent-consumer.md`](docs/tonic-pr-agent-consumer.md).
+
+## License
+
+Unless otherwise noted in per-package metadata, this repository and the publishable packages (Python `mergetonic`, npm `@mergetonic/core`, VS Code extension `merge-conflict-resolver`, and the GitHub agents) are under **GNU GPL-2.0-only**. See the `LICENSE` file in the repository root and in each published package directory.
+
+The `merge-tonic` / `mergetonic` CLI requires a one-time acceptance step (`merge-tonic accept-license`) before other subcommands run, unless `MERGETONIC_LICENSE_ACCEPTED=1` is set (for automation and tests).
 
 Multi-product workspace:
 
@@ -109,60 +115,3 @@ npm run build -w @mergetonic/core
 npm run compile -w merge-conflict-resolver
 npm run test -w merge-conflict-resolver
 ```
-
-## CI
-
-- `.github/workflows/ci-core.yml` - Python tests when `merge-tonic-lib/` changes
-- `.github/workflows/ci-js-core.yml` - `@mergetonic/core` build + tests (includes Python parity)
-- `.github/workflows/ci-agent.yml` - Python agent tests
-- `.github/workflows/ci-agent-node.yml` - Node agent tests
-- `.github/workflows/ci-extension.yml` - extension compile/test/VSIX dry-run
-- `.github/workflows/detect-release-matrix.yml` - reusable changed-component matrix for release jobs
-- `.github/workflows/sync-target-repos.yml` - sync selected monorepo components to target repos (`dry_run` + `sync_mode`)
-- [`docs/tonic-pr-agent-consumer.md`](docs/tonic-pr-agent-consumer.md) - operator snippet for workflows
-- `.github/workflows/publish-core.yml` - manual, itemized PyPI publish gate for `merge-tonic`
-- `.github/workflows/publish-agent-pypi.yml` - manual, itemized PyPI publish gate for `mergetonic-github-agent`
-- `.github/workflows/publish-npm.yml` - manual, itemized npm publish gate for `@mergetonic/core` (`NPM_TOKEN`)
-- `.github/workflows/publish-agent-npm.yml` - manual, itemized npm publish gate for `@mergetonic/github-agent`
-- `.github/workflows/publish-extension.yml` - manual VSIX package + optional Marketplace/OpenVSX publish
-- `.github/workflows/release-contracts.yml` - validates release version contracts across packages/action manifests
-- `.github/workflows/action-hydration-smoke.yml` - verifies action.yml hydration compatibility contracts
-
-## Mono to target repo mapping
-
-`release-targets.json` is the routing source of truth for monorepo-to-target sync:
-
-- `vsmt` <= `extensions/tonic-conflict-resolver/**`
-- `js-action` <= `agents/github-action-agent-node/**`
-- `py-action` <= `agents/github-action-agent/**`
-- `tsmt` <= `packages/tonic-core/**`
-- `mtpy` <= `merge-tonic-lib/**`
-- `.github` <= org/community/profile metadata paths
-
-Target-specific README/workflow overlays live in `target-repo-templates/<target-id>/` and are applied during sync so downstream repos keep unique readmes and idiosyncratic publish workflows.
-
-Operational details (secrets, manual launch matrix, rollout steps): [`docs/mono-to-target-release.md`](docs/mono-to-target-release.md).
-
-Composite actions install from the workspace when `merge-tonic-lib/pyproject.toml` (Python) or `agents/github-action-agent-node/package.json` (Node) exists; otherwise they install pinned PyPI/npm versions (`tonic_version`, `tonic_github_agent_version` inputs).
-
-## Documentation source of truth
-
-- Authoritative docs are authored in this monorepo under `wiki-src/`.
-- GitHub Wiki is the published reader surface and must be treated as mirror output.
-- Direct edits in the wiki UI are unsupported; change docs via pull requests in `common`.
-- Canonical page map is versioned in `wiki-src/_DocMap.json`.
-
-## Wiki bootstrap status
-
-- [ ] Default branch exists and is non-empty (`main`)
-- [ ] Wiki feature enabled in repository settings
-- [ ] Initial wiki page created (provisions `.wiki.git`)
-- [ ] Preflight script passes: `python scripts/docs/wiki_preflight.py --repo mergetonic/common`
-- [ ] Manual check workflow passes: `.github/workflows/wiki-bootstrap-check.yml`
-- Runbook: [`docs/wiki-bootstrap.md`](docs/wiki-bootstrap.md)
-
-## Layout note
-
-Python sources live under [`merge-tonic-lib/tonic/`](merge-tonic-lib/tonic/).
-
-The parity helper is [`merge-tonic-lib/tests/parity_gate.py`](merge-tonic-lib/tests/parity_gate.py); Node tests spawn it with `PYTHONPATH=merge-tonic-lib`.

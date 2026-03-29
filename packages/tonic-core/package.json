@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/mergetonic/common/issues"
   },
-  "license": "Unlicense",
+  "license": "GPL-2.0-only",
   "type": "commonjs",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,11 +22,12 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p .",
-    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/cli.test.js",
+    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/markerLabel.test.js dist/test/cli.test.js",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

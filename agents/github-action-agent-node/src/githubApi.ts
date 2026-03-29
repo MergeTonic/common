@@ -189,3 +189,30 @@ export async function postPullReviewComment(
   }
   return githubRequestJson("POST", url, token, payload);
 }
+
+export async function createPullRequest(
+  owner: string,
+  repo: string,
+  token: string,
+  params: {
+    title: string;
+    head: string;
+    base: string;
+    body: string;
+  },
+): Promise<{ number: number; headSha: string }> {
+  const url = `${apiRoot()}/repos/${owner}/${repo}/pulls`;
+  const data = (await githubRequestJson("POST", url, token, {
+    title: params.title,
+    head: params.head,
+    base: params.base,
+    body: params.body,
+  })) as Record<string, unknown>;
+  const number = data.number;
+  const head = data.head as Record<string, unknown> | undefined;
+  const headSha = head?.sha;
+  if (typeof number !== "number" || typeof headSha !== "string") {
+    throw new Error("createPullRequest returned incomplete payload");
+  }
+  return { number, headSha };
+}

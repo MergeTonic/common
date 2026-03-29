@@ -4,12 +4,16 @@ on:
   push:
     paths:
       - "agents/github-action-agent/**"
+      - "agents/shared-tonic-ai-prompts/**"
+      - "scripts/sync_agent_ai_prompts.py"
       - "merge-tonic-lib/**"
       - "packages/tonic-core/**"
       - ".github/workflows/ci-agent.yml"
   pull_request:
     paths:
       - "agents/github-action-agent/**"
+      - "agents/shared-tonic-ai-prompts/**"
+      - "scripts/sync_agent_ai_prompts.py"
       - "merge-tonic-lib/**"
       - "packages/tonic-core/**"
       - ".github/workflows/ci-agent.yml"
@@ -22,6 +26,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Sync AI prompt bundle
+        run: python scripts/sync_agent_ai_prompts.py
       - name: Install tonic + agent
         run: |
           pip install -e "./merge-tonic-lib[dev]"

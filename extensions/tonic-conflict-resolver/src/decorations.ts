@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { type ConflictBlock, parseTonicConflicts } from "@mergetonic/core";
+import { semanticColorForLabel } from "./config/conflictLabelConfig";
 
 export function createDecorationTypes(): {
   left: vscode.TextEditorDecorationType;
@@ -91,7 +92,57 @@ export function decorateDocument(
     right.push(...r.right);
     headers.push(...r.headers);
   }
-  editor.setDecorations(types.left, left);
-  editor.setDecorations(types.right, right);
+  const semanticLeft = collectSemanticRanges(doc, blocks, 0);
+  const semanticRight = collectSemanticRanges(doc, blocks, 1);
+  if (semanticLeft.size === 0 && semanticRight.size === 0) {
+    editor.setDecorations(types.left, left);
+    editor.setDecorations(types.right, right);
+  } else {
+    editor.setDecorations(types.left, []);
+    editor.setDecorations(types.right, []);
+    const merged = new Map<string, vscode.Range[]>();
+    for (const [color, ranges] of [...semanticLeft.entries(), ...semanticRight.entries()]) {
+      merged.set(color, [...(merged.get(color) ?? []), ...ranges]);
+    }
+    applySemanticDecorations(editor, merged);
+  }
   editor.setDecorations(types.header, headers);
+}
+
+const dynamicDecorationTypes: vscode.TextEditorDecorationType[] = [];
+
+function collectSemanticRanges(
+  doc: vscode.TextDocument,
+  blocks: ConflictBlock[],
+  parity: 0 | 1,
+): Map<string, vscode.Range[]> {
+  const byColor = new Map<string, vscode.Range[]>();
+  for (const block of blocks) {
+    const rangeSet = rangesForBlock(doc, block);
+    const ranges = parity === 0 ? rangeSet.left : rangeSet.right;
+    if (ranges.length === 0) {
+      continue;
+    }
+    const segment = block.segments.find((_, idx) => idx % 2 === parity);
+    const color = semanticColorForLabel(segment?.label ?? block.kind);
+    if (!color) {
+      continue;
+    }
+    byColor.set(color, [...(byColor.get(color) ?? []), ...ranges]);
+  }
+  return byColor;
+}
+
+function applySemanticDecorations(editor: vscode.TextEditor, byColor: Map<string, vscode.Range[]>): void {
+  while (dynamicDecorationTypes.length > 0) {
+    dynamicDecorationTypes.pop()?.dispose();
+  }
+  for (const [color, ranges] of byColor.entries()) {
+    const type = vscode.window.createTextEditorDecorationType({
+      backgroundColor: color,
+      isWholeLine: true,
+    });
+    dynamicDecorationTypes.push(type);
+    editor.setDecorations(type, ranges);
+  }
 }

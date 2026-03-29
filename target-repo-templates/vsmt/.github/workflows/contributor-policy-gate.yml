@@ -1,0 +1,29 @@
+name: Contributor Policy Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  contributor-policy-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch policy gate script
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/mergetonic/common/main/scripts/policy/contributor_acceptance.py" -o contributor_acceptance.py
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Evaluate contributor acceptance policy
+        env:
+          GITHUB_TOKEN: ${{ secrets.POLICY_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          MERGETONIC_COMMON_REPO: mergetonic/common
+          MERGETONIC_COMMON_REF: main
+        run: |
+          python contributor_acceptance.py gate

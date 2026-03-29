@@ -9,7 +9,8 @@ def serialize_state(state):
         else:
             line, depth, anchored_right, count, provenance = row
         encoded = ",".join(provenance)
-        result.append(f'{depth} {['<', '>'][anchored_right]} {count} [{encoded}] {line}')
+        anchor = ">" if anchored_right else "<"
+        result.append(f"{depth} {anchor} {count} [{encoded}] {line}")
     return '\n'.join(result)
 
 def deserialize_state(mystr):

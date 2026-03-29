@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tonic import current_lines, initial_state, merge_states
+from tonic.conflict_parser import parse_conflict_label
 
 
 def merge_snapshots(
@@ -28,8 +29,12 @@ class ConflictRegion:
         "start_line",
         "end_line",
         "conflict_kind",
+        "conflict_base_kind",
+        "conflict_tags",
         "left_commit_ids",
         "right_commit_ids",
+        "marker_label_begin",
+        "marker_label_mid",
     )
 
     def __init__(
@@ -41,8 +46,12 @@ class ConflictRegion:
         start_line: int = 0,
         end_line: int = 0,
         conflict_kind: str = "",
+        conflict_base_kind: str = "",
+        conflict_tags: dict[str, str] | None = None,
         left_commit_ids: list[str] | None = None,
         right_commit_ids: list[str] | None = None,
+        marker_label_begin: str = "",
+        marker_label_mid: str = "",
     ) -> None:
         self.base_content = base_content
         self.left_content = left_content
@@ -50,29 +59,50 @@ class ConflictRegion:
         self.start_line = start_line
         self.end_line = end_line
         self.conflict_kind = conflict_kind
+        self.conflict_base_kind = conflict_base_kind
+        self.conflict_tags = dict(conflict_tags or {})
         self.left_commit_ids = list(left_commit_ids or [])
         self.right_commit_ids = list(right_commit_ids or [])
+        self.marker_label_begin = marker_label_begin
+        self.marker_label_mid = marker_label_mid
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "base_content": self.base_content,
             "left_content": self.left_content,
             "right_content": self.right_content,
             "start_line": self.start_line,
             "end_line": self.end_line,
             "conflict_kind": self.conflict_kind,
+            "conflict_base_kind": self.conflict_base_kind,
+            "conflict_tags": self.conflict_tags,
             "left_commit_ids": self.left_commit_ids,
             "right_commit_ids": self.right_commit_ids,
         }
+        if self.marker_label_begin:
+            d["marker_label_begin"] = self.marker_label_begin
+        if self.marker_label_mid:
+            d["marker_label_mid"] = self.marker_label_mid
+        return d
 
 
 class ConflictFile:
-    __slots__ = ("path", "conflicts", "content")
+    __slots__ = ("path", "conflicts", "content", "left_label", "right_label")
 
-    def __init__(self, path: str, conflicts: list[ConflictRegion], content: str = "") -> None:
+    def __init__(
+        self,
+        path: str,
+        conflicts: list[ConflictRegion],
+        content: str = "",
+        *,
+        left_label: str = "left",
+        right_label: str = "right",
+    ) -> None:
         self.path = path
         self.conflicts = conflicts
         self.content = content
+        self.left_label = left_label
+        self.right_label = right_label
 
 
 def annotated_to_conflict_file(path: str, annotated_lines: list[str]) -> ConflictFile:
@@ -87,6 +117,7 @@ def annotated_to_conflict_file(path: str, annotated_lines: list[str]) -> Conflic
             i += 1
             continue
         kind = line.removeprefix("<<<<<<< begin ").strip()
+        kind_meta = parse_conflict_label(kind)
         start_line = i + 1
         i += 1
         inner: list[str] = []
@@ -97,14 +128,17 @@ def annotated_to_conflict_file(path: str, annotated_lines: list[str]) -> Conflic
         left_lines: list[str] = []
         right_lines: list[str] = []
         seen_mid = False
+        mid_marker_label = ""
         for cl in inner:
             if cl.startswith("======= begin "):
+                mid_marker_label = cl.removeprefix("======= begin ").strip()
                 seen_mid = True
                 continue
             if not seen_mid:
                 left_lines.append(cl)
             else:
                 right_lines.append(cl)
+        same = not mid_marker_label or mid_marker_label == kind
         conflicts.append(
             ConflictRegion(
                 left_content="\n".join(left_lines),
@@ -112,11 +146,21 @@ def annotated_to_conflict_file(path: str, annotated_lines: list[str]) -> Conflic
                 start_line=start_line,
                 end_line=end_line,
                 conflict_kind=kind,
+                conflict_base_kind=str(kind_meta.get("base_kind") or ""),
+                conflict_tags=dict(kind_meta.get("tags") or {}),
+                marker_label_begin="" if same else kind,
+                marker_label_mid="" if same else mid_marker_label,
             )
         )
         if i < n and annotated_lines[i].startswith(">>>>>>> end conflict"):
             i += 1
-    return ConflictFile(path=path, conflicts=conflicts, content=text)
+    return ConflictFile(
+        path=path,
+        conflicts=conflicts,
+        content=text,
+        left_label="left",
+        right_label="right",
+    )
 
 
 def heuristic_resolved_lines(region: ConflictRegion) -> list[str]:

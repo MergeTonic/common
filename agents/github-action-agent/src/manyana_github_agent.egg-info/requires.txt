@@ -1,4 +1,0 @@
-manyana<1,>=0.1.0
-
-[dev]
-pytest>=7.0

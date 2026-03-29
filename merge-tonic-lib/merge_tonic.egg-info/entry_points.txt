@@ -1,4 +1,0 @@
-[console_scripts]
-merge-tonic = tonic.cli:main
-mt = tonic.cli:main
-tonic-merge = tonic.cli:main

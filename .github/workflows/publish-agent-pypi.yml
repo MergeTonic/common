@@ -26,7 +26,7 @@ jobs:
 
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "py-action"') && inputs.publish_pypi == true
+    if: contains(needs.detect.outputs.matrix_json, '"id": "py-action"') && inputs.publish_pypi == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -36,6 +36,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Sync AI prompt bundle
+        run: python scripts/sync_agent_ai_prompts.py
       - name: Install build
         run: pip install build
       - name: Build agent wheel and sdist
@@ -60,6 +62,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: python scripts/sync_agent_ai_prompts.py
       - run: pip install -e "./merge-tonic-lib[dev]"
       - run: pip install -e "./agents/github-action-agent[dev]"
       - run: python -m pytest agents/github-action-agent/tests -v

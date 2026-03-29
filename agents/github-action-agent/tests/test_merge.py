@@ -18,3 +18,5 @@ def test_annotated_to_conflict_file():
     cf = annotated_to_conflict_file("t.txt", ann)
     assert len(cf.conflicts) == 1
     assert cf.conflicts[0].conflict_kind == "added left"
+    assert cf.left_label == "left"
+    assert cf.right_label == "right"

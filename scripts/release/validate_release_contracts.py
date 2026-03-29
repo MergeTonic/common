@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -26,6 +27,35 @@ def _read_release_targets() -> dict:
     return _read_json("release-targets.json")
 
 
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def _validate_ai_prompt_bundle_copies(failures: list[str]) -> None:
+    canonical = Path("agents/shared-tonic-ai-prompts/prompts.v1.json")
+    node_copy = Path("agents/github-action-agent-node/src/data/aiPrompts.v1.json")
+    py_copy = Path("agents/github-action-agent/src/tonic_agent/data/ai_prompts.v1.json")
+    if not canonical.is_file():
+        failures.append("missing agents/shared-tonic-ai-prompts/prompts.v1.json")
+        return
+    want = _sha256_file(canonical)
+    for label, p in (
+        ("node agent aiPrompts.v1.json", node_copy),
+        ("python agent ai_prompts.v1.json", py_copy),
+    ):
+        if not p.is_file():
+            failures.append(f"missing {label}: {p} (run: python scripts/sync_agent_ai_prompts.py)")
+            continue
+        got = _sha256_file(p)
+        if got != want:
+            failures.append(
+                f"AI prompt bundle drift: {label} does not match canonical "
+                f"(run: python scripts/sync_agent_ai_prompts.py)"
+            )
+
+
 def main() -> int:
     failures: list[str] = []
     ts_cli_version = _read_json("packages/tonic-core/package.json")["version"]
@@ -46,6 +76,8 @@ def main() -> int:
     js_pkg = _read_json("agents/github-action-agent-node/package.json")
     if js_pkg["dependencies"]["@mergetonic/core"].lstrip("^") != ts_cli_version:
         failures.append("node action dependency @mergetonic/core must track ts cli/core version")
+
+    _validate_ai_prompt_bundle_copies(failures)
 
     release_targets = _read_release_targets()
     allowed_version_keys = {"ts_cli", "js_action", "vsmt", "py_cli", "py_action"}

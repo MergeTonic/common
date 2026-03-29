@@ -12,9 +12,18 @@ import {
 import { mergeReportDict, type MergeArtifactJson } from "./cliReport";
 import { gitMain } from "./gitSubcommands";
 import { gitRequireOk } from "./gitExec";
+import {
+  isHelpInvocation,
+  isLicenseAccepted,
+  LICENSE_GATE_MESSAGE,
+  licenseAcceptancePath,
+  writeLicenseAcceptance,
+} from "./license";
 
 function usage(): void {
   console.error(`Usage:
+  merge-tonic help | -h | --help
+  merge-tonic accept-license   (record GPL-2.0-only acceptance; see LICENSE in the package)
   merge-tonic merge --left <file> --right <file> [--out <file> | --in-place] [--json-state]
   merge-tonic m -l <file> -r <file> [-o <file> | -i] [-j]
   merge-tonic report <left-file> <right-file> [-p <logicalPath>]   (positional shorthand)
@@ -26,6 +35,15 @@ function usage(): void {
   merge-tonic git [--repo <dir>] fetch|compare|materialize|from-index|merge|worktree ...
   merge-tonic github ref create --repo owner/name --ref refs/heads/b --sha <sha>  (needs GITHUB_TOKEN)
   Legacy: first argument may be "merge-tonic", "tonic-merge", or "mt" (ignored).`);
+}
+
+function cmdAcceptLicense(): number {
+  console.error(
+    "Merge Tonic (merge-tonic) is licensed under GNU GPL-2.0-only. See LICENSE in the package or https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt",
+  );
+  writeLicenseAcceptance();
+  console.log(`License accepted. Record saved at ${licenseAcceptancePath()}`);
+  return 0;
 }
 
 function normLines(s: string): string[] {
@@ -128,20 +146,20 @@ function positionalArgs(argv: string[]): string[] {
   return out;
 }
 
-function cmdMergeBranches(baseRef: string, targetBranch: string, repoRoot: string): number {
+async function cmdMergeBranches(baseRef: string, targetBranch: string, repoRoot: string): Promise<number> {
   const current = gitRequireOk(repoRoot, ["rev-parse", "--abbrev-ref", "HEAD"], "branch").trim();
   if (current !== targetBranch) {
     console.error(`merge branch helper: HEAD is "${current}", expected "${targetBranch}"`);
     return 1;
   }
-  const mergeRc = gitMain(repoRoot, ["merge", "--ref", baseRef, "--no-commit"]);
+  const mergeRc = await gitMain(repoRoot, ["merge", "--ref", baseRef, "--no-commit"]);
   if (mergeRc !== 0) {
     return mergeRc;
   }
-  return gitMain(repoRoot, ["from-index", "--write"]);
+  return await gitMain(repoRoot, ["from-index", "--write"]);
 }
 
-function cmdMerge(argv: string[]): number {
+function cmdMerge(argv: string[]): number | Promise<number> {
   const hasFileModeFlags = hasAnyFlag(argv, ["--left", "-l", "--right", "-r"]);
   if (!hasFileModeFlags) {
     const { positionals, repo } = parseMergeBranchArgs(argv);
@@ -367,10 +385,14 @@ function stripRepo(argv: string[]): { repo: string; rest: string[] } {
   return { repo, rest };
 }
 
-function runCli(argv: string[]): number {
+async function runCli(argv: string[]): Promise<number> {
   const sub = argv[0];
+  if (sub === "help" || sub === "-h" || sub === "--help") {
+    usage();
+    return 0;
+  }
   if (sub === "merge" || sub === "m") {
-    return cmdMerge(argv.slice(1));
+    return await Promise.resolve(cmdMerge(argv.slice(1)));
   }
   if (sub === "apply" || sub === "a") {
     return cmdApply(argv.slice(1));
@@ -383,7 +405,7 @@ function runCli(argv: string[]): number {
   }
   if (sub === "git" || sub === "g") {
     const { repo, rest } = stripRepo(argv.slice(1));
-    return gitMain(repo, rest);
+    return await gitMain(repo, rest);
   }
   usage();
   return 1;
@@ -394,10 +416,24 @@ void (async () => {
   if (argv[0] === "merge-tonic" || argv[0] === "tonic-merge" || argv[0] === "mt") {
     argv = argv.slice(1);
   }
+  if (!isLicenseAccepted()) {
+    if (isHelpInvocation(argv)) {
+      usage();
+      process.exit(0);
+    }
+    if (argv[0] === "accept-license") {
+      process.exit(cmdAcceptLicense());
+    }
+    console.error(LICENSE_GATE_MESSAGE);
+    process.exit(1);
+  }
+  if (argv[0] === "accept-license") {
+    process.exit(cmdAcceptLicense());
+  }
   if (argv[0] === "github") {
     const { githubMainAsync } = await import("./githubCli");
     process.exit(await githubMainAsync(argv.slice(1)));
     return;
   }
-  process.exit(runCli(argv));
+  process.exit(await runCli(argv));
 })();

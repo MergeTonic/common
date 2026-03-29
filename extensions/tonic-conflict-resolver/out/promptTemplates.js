@@ -1,11 +1,12 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CHAT_OUTPUT_JSON_INSTRUCTIONS = exports.CONTEXT_AWARE_SYSTEM_PROMPT = exports.ENHANCED_SYSTEM_PROMPT = exports.DEFAULT_SYSTEM_PROMPT = void 0;
+exports.buildHydratedConflictPrompt = buildHydratedConflictPrompt;
 /**
  * Optional parity with Python agent prompt templates (strings only).
  * Tonic uses semantic kinds (added left, deleted right, …), not Git "ours/theirs".
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHAT_OUTPUT_JSON_INSTRUCTIONS = exports.CONTEXT_AWARE_SYSTEM_PROMPT = exports.ENHANCED_SYSTEM_PROMPT = exports.DEFAULT_SYSTEM_PROMPT = void 0;
-exports.buildHydratedConflictPrompt = buildHydratedConflictPrompt;
+const core_1 = require("@mergetonic/core");
 exports.DEFAULT_SYSTEM_PROMPT = `You are an expert software developer helping to resolve merge conflicts
 described with Tonic semantic markers. "Left" is the base branch version; "right" is the head (PR) version.
 Conflict kinds include added left, added right, added both, deleted left, deleted right.`;
@@ -36,6 +37,11 @@ function buildHydratedConflictPrompt(params) {
             ? [`Conflict range (1-based lines): ${params.conflictStartLine}-${params.conflictEndLine}`]
             : []),
         `Conflict kind: ${params.conflictKind}`,
+        ...(() => {
+            const parsed = (0, core_1.parseConflictLabel)(params.conflictKind);
+            const tags = Object.entries(parsed.tags).map(([k, v]) => `${k}=${v}`);
+            return tags.length ? [`Conflict tags: ${tags.join(", ")}`] : [];
+        })(),
         `--- Left (base) ---`,
         params.leftHunk || "(empty)",
         `--- Right (head) ---`,

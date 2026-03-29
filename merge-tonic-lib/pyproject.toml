@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Deterministic merge / conflict engine (CRDT weave) for version control"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Unlicense" }
+license = { text = "GPL-2.0-only" }
 authors = [{ name = "Merge Tonic contributors" }]
 
 [project.urls]
@@ -24,6 +24,9 @@ mergetonic = "tonic.cli:main"
 merge-tonic = "tonic.cli:main"
 tonic-merge = "tonic.cli:main"
 mt = "tonic.cli:main"
+
+[tool.setuptools]
+license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["."]

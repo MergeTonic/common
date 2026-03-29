@@ -1,0 +1,33 @@
+name: Accept Contributor Terms
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  apply-acceptance:
+    if: ${{ github.event.issue.pull_request != null && contains(github.event.comment.body, '/accept-terms') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch acceptance apply script
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/mergetonic/common/main/scripts/policy/apply_acceptance.py" -o apply_acceptance.py
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Apply acceptance writeback
+        env:
+          GITHUB_TOKEN: ${{ secrets.POLICY_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          POLICY_BOT_TOKEN: ${{ secrets.POLICY_BOT_TOKEN }}
+          MERGETONIC_COMMON_REPO: mergetonic/common
+          MERGETONIC_COMMON_REF: main
+          MERGETONIC_POLICY_VERSION: "2026-03-27.1"
+        run: |
+          python apply_acceptance.py

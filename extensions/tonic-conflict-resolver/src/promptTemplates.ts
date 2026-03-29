@@ -2,6 +2,7 @@
  * Optional parity with Python agent prompt templates (strings only).
  * Tonic uses semantic kinds (added left, deleted right, …), not Git "ours/theirs".
  */
+import { parseConflictLabel } from "@mergetonic/core";
 
 export const DEFAULT_SYSTEM_PROMPT = `You are an expert software developer helping to resolve merge conflicts
 described with Tonic semantic markers. "Left" is the base branch version; "right" is the head (PR) version.
@@ -49,6 +50,11 @@ export function buildHydratedConflictPrompt(params: {
       ? [`Conflict range (1-based lines): ${params.conflictStartLine}-${params.conflictEndLine}`]
       : []),
     `Conflict kind: ${params.conflictKind}`,
+    ...(() => {
+      const parsed = parseConflictLabel(params.conflictKind);
+      const tags = Object.entries(parsed.tags).map(([k, v]) => `${k}=${v}`);
+      return tags.length ? [`Conflict tags: ${tags.join(", ")}`] : [];
+    })(),
     `--- Left (base) ---`,
     params.leftHunk || "(empty)",
     `--- Right (head) ---`,

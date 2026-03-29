@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import quote
 
 from .github_api import fetch_url_text_authenticated, get_git_blob_text, get_json
+from .git_merge_hydration import GitMergeHydrationOptions
+from .hydrate_git_merge import hydrate_git_merge
 
 
 def _api_base() -> str:
@@ -152,8 +154,30 @@ def hydrate_pr_files(
     *,
     mode: str,
     max_files: int,
+    git_merge_hydration: GitMergeHydrationOptions | None = None,
 ) -> dict[str, tuple[list[str], list[str], str]]:
     """Return path -> (base lines, head lines, git status hint)."""
+    if mode == "git-merge":
+        workspace = (
+            os.environ.get("TONIC_AGENT_ISOLATED_WORKSPACE")
+            or os.environ.get("GITHUB_WORKSPACE")
+            or os.getcwd()
+        )
+        hydrated = hydrate_git_merge(
+            workspace=workspace,
+            base_sha=base_sha,
+            head_sha=head_sha,
+            max_files=max_files,
+            git_merge_hydration=git_merge_hydration,
+        )
+        return {
+            path: (
+                data["left_lines"],  # type: ignore[index]
+                data["right_lines"],  # type: ignore[index]
+                str(data["status"]),  # type: ignore[index]
+            )
+            for path, data in hydrated.items()
+        }
     out: dict[str, tuple[list[str], list[str], str]] = {}
     if mode == "symmetric-union":
         base_tree = list_tree_blob_shas(owner, repo, base_sha, token)

@@ -55,7 +55,12 @@ class ConflictTreeProvider {
             return [];
         }
         const blocks = (0, core_1.parseTonicConflicts)(this._doc.getText());
-        return blocks.map((b, i) => new ConflictItem((0, core_1.conflictSummary)(b), b.startLine, i, vscode.TreeItemCollapsibleState.None));
+        return blocks.map((b, i) => {
+            const meta = (0, core_1.parseConflictLabel)(b.kind);
+            const author = meta.tags.author ? ` | author:${meta.tags.author}` : "";
+            const intent = meta.tags.intent ? ` | intent:${meta.tags.intent}` : "";
+            return new ConflictItem(`${(0, core_1.conflictSummary)(b)}${author}${intent}`, b.startLine, i, vscode.TreeItemCollapsibleState.None);
+        });
     }
 }
 exports.ConflictTreeProvider = ConflictTreeProvider;

@@ -7,7 +7,7 @@
 
 ## Node / TypeScript runtime (default for new installs)
 
-The composite action **[`agents/github-action-agent-node/action.yml`](../github-action-agent-node/action.yml)** mirrors this Python agent on **`pull_request`**: hydrates base/head via the GitHub API, runs **`@mergetonic/core`**, upserts summary + per-file issue comments, posts **inline review comments** with unified diff + optional **GitHub “Commit suggestion”** blocks (heuristic resolution; optional AI is reserved). Writes the same **`merge-tonic-report`** JSON when `report_path` / `TONIC_AGENT_REPORT_PATH` is set. Use it when you want a Node 20 environment without `pip`.
+The composite action **[`agents/github-action-agent-node/action.yml`](../github-action-agent-node/action.yml)** mirrors this Python agent on **`pull_request`**. Default `merge_engine=git` performs isolated git-merge hydration in a temporary workspace, creates a fresh run branch/PR, and publishes outputs to that run PR context. Optional `merge_engine=api` keeps compare/contents hydration and publishes to the source event PR context.
 
 ```yaml
 - uses: ./agents/github-action-agent-node
@@ -17,7 +17,7 @@ The composite action **[`agents/github-action-agent-node/action.yml`](../github-
 
 ## Python agent (this package)
 
-On **`pull_request` events**, hydrates **left = base SHA** and **right = head SHA** for each changed file (GitHub compare API), runs Tonic `merge_states` on the two snapshots, and posts:
+On **`pull_request` events**, the default path (`merge_engine=git`) hydrates conflicts from isolated `git merge --no-commit`, then posts:
 
 - One **summary** issue comment (upserted via `<!-- tonic-agent:summary` marker)
 - Per-file issue comments when there are conflict markers (upserted via `<!-- tonic-agent:file:{path}:`)
@@ -27,7 +27,7 @@ On **`pull_request` events**, hydrates **left = base SHA** and **right = head SH
 
 Hydration uses the Contents API with **download_url** and **git blobs** fallbacks for large files. Optional AI (`INPUT_ENABLE_AI`) returns JSON `resolved_lines` for inline suggestions when the model obeys the contract; otherwise a **head-first heuristic** is used.
 
-This is **not** Git's three-way merge: it is Tonic's deterministic two-snapshot weave (see the repository root README).
+In `merge_engine=api`, hydration falls back to compare/contents API snapshots and Tonic's deterministic two-snapshot weave (see the repository root README).
 
 If there is **no** `pull_request` in `GITHUB_EVENT_PATH` (local run), the agent falls back to a small demo merge so `python -m tonic_agent` still prints output.
 
@@ -40,22 +40,27 @@ If there is **no** `pull_request` in `GITHUB_EVENT_PATH` (local run), the agent 
 **Checks:** set input `enable_checks: true` (and grant `checks: write` on the token) to post a **GitHub Check** with annotations alongside PR comments.
 
 | Input / env | Purpose |
-|-------------|---------|
+| ----------- | ------- |
 | `INPUT_HYDRATE_MODE` / default `pr-diff` | `pr-diff` uses compare commits; `symmetric-union` unions recursive git trees (heavier) |
+| `INPUT_MERGE_ENGINE` / default `git` | `git` performs isolated `git merge --no-commit`, requires immutable `TONIC_TARGET_*` refs, creates a new run PR, and publishes to that new PR context; `api` keeps compare+snapshot weave |
 | `INPUT_ENABLE_AI` | When `true`, uses AI for inline JSON `resolved_lines` (+ file-comment notes) when API keys are set |
 | `INPUT_ENABLE_CHECKS` | When `true`, posts a GitHub Check run with annotations (needs `checks: write`) |
 | `INPUT_ENABLE_BLAME` | When `true`, include optional blame metadata (`left_commit_ids`/`right_commit_ids`) in report and inline summaries |
 | `INPUT_BLAME_MAX_COMMITS` | Max blame commit ids per side in emitted metadata (default `3`) |
 | `INPUT_MAX_SUGGESTION_LINES` | Cap on lines per suggestion block (default `200`; use `0` for uncapped — still subject to GitHub API limits) |
+| `INPUT_AUTHOR_MODE` | Git-merge hydration: `base-head` (default), `human`, or `ref` |
+| `INPUT_AUTHOR_ALIAS_LEFT` / `INPUT_AUTHOR_ALIAS_RIGHT` | Optional explicit author tags on Tonic markers |
+| `INPUT_INTENT_PAIR` | Optional `left,right` intent tags (defaults `preserve_base,prefer_head`) |
+| `INPUT_GITHUB_LOGIN_LEFT` / `INPUT_GITHUB_LOGIN_RIGHT` | Optional GitHub logins for author tags |
 | `TONIC_AGENT_MAX_FILES` | Cap files merged (default `200`) |
 | `TONIC_AGENT_REPORT_PATH` | Write full merge report JSON |
 
-**Manual acceptance:** on a PR with a text conflict, inline threads should show marker excerpts + diff; *Commit suggestion* should apply cleanly on the **RIGHT** side when line counts match. Fork PRs may lack token permissions for review comments. **`pull-requests: write`** is required for inline suggestions.
+**Manual acceptance:** on a PR with a text conflict, inline threads should show marker excerpts + diff; *Commit suggestion* should apply cleanly on the **RIGHT** side when line counts match. Fork PRs may lack token permissions for review comments. **`pull-requests: write`** is required for inline suggestions, and **`contents: write`** is required for run-branch push/new-PR orchestration.
 
 ## Environment variables (TONIC_AGENT_*)
 
 | Tonic | Legacy fallback env | Purpose |
-|--------|-------------------|---------|
+| ----- | ------------------- | ------- |
 | `TONIC_AGENT_SYSTEM_PROMPT` | `RIZZLER_SYSTEM_PROMPT` | Override system prompt |
 | `TONIC_AGENT_PROMPT_TEMPLATE` | `RIZZLER_PROMPT_TEMPLATE` | `default`, `enhanced`, `context-aware` |
 | `TONIC_AGENT_OPENAI_API_KEY` | `RIZZLER_OPENAI_API_KEY` | API key |
