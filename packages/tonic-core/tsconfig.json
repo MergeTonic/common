@@ -10,9 +10,8 @@
     "declarationMap": true,
     "sourceMap": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/test/_tmp_*/**/*"]
+  "exclude": ["src/test/_tmp*/**"]
 }

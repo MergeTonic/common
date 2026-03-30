@@ -53,7 +53,6 @@ class AIProvider(Protocol):
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
-        expected_resolved_line_count: int | None = None,
     ) -> AIResponse: ...
 
     def resolve_file(self, conflict_file: ConflictFile) -> AIResponse: ...

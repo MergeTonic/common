@@ -176,7 +176,7 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p . && esbuild src/extension.ts --bundle --platform=node --external:vscode --external:tree-sitter --external:tree-sitter-typescript --external:tree-sitter-javascript --outfile=out/extension.js --sourcemap",
+    "compile": "tsc -p . && esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=out/extension.js --sourcemap",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test out/test/parser.test.js out/test/agentIntegration.test.js out/test/promptTemplates.test.js",
     "package": "vsce package --no-dependencies"

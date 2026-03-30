@@ -61,14 +61,6 @@ function gitOut(cwd: string, args: string[], allowFail = false): string {
   }
 }
 
-function currentBranch(cwd: string): string {
-  const out = gitOut(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"], true).trim();
-  if (!out || /(^|\n)fatal:/i.test(out)) {
-    return "";
-  }
-  return out.split(/\r?\n/, 1)[0]?.trim() ?? "";
-}
-
 function readStageLines(cwd: string, stage: "2" | "3", relPath: string): string[] {
   const out = gitOut(cwd, ["show", `:${stage}:${relPath}`], true);
   if (!out) {
@@ -105,59 +97,53 @@ export function hydrateGitMerge(params: {
   if (!isolatedWorkspace && process.env.GITHUB_ACTIONS === "true") {
     throw new Error("hydrateGitMerge requires TONIC_AGENT_ISOLATED_WORKSPACE in GitHub Actions");
   }
-  const originalBranch = currentBranch(workspace);
-  try {
-    gitOut(workspace, ["checkout", "-f", baseSha]);
-    const mergeOutput = gitOut(workspace, ["merge", "--no-ff", "--no-commit", headSha], true);
-    const mergeFailed = /(^|\n)fatal:|(^|\n)error:/i.test(mergeOutput);
-    const unmergedRaw = gitOut(workspace, ["diff", "--name-only", "--diff-filter", "U"], true);
-    const paths = unmergedRaw
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (mergeFailed && paths.length === 0) {
-      throw new Error(`git merge failed without unmerged files: ${mergeOutput.trim()}`);
-    }
-    const out: Record<string, GitHydratePair> = {};
-    for (const relPath of paths) {
-      if (Object.keys(out).length >= maxFiles) {
-        break;
-      }
-      if (!isProbablyTextPath(relPath)) {
-        continue;
-      }
-      const absPath = path.join(workspace, relPath);
-      if (!fs.existsSync(absPath)) {
-        continue;
-      }
-      const mergedText = fs.readFileSync(absPath, "utf8");
-      const mergedLines = mergedText.split(/\r?\n/);
-      if (mergedLines.length > 0 && mergedLines[mergedLines.length - 1] === "") {
-        mergedLines.pop();
-      }
-      if (!hasConflictMarkers(mergedLines)) {
-        continue;
-      }
-      const blocks = parseGitConflicts(mergedText);
-      const annotated = gitConflictBlocksToTonicAnnotatedPreview(blocks, {
-        repoRoot: workspace,
-        leftRef: baseSha,
-        rightRef: headSha,
-        ...gitMergeHydration,
-      });
-      out[relPath] = {
-        leftLines: readStageLines(workspace, "2", relPath),
-        rightLines: readStageLines(workspace, "3", relPath),
-        status: "unmerged",
-        gitAnnotatedLines: annotated,
-        mergedLines,
-      };
-    }
-    return out;
-  } finally {
+  gitOut(workspace, ["checkout", "-f", baseSha]);
+  const mergeOutput = gitOut(workspace, ["merge", "--no-ff", "--no-commit", headSha], true);
+  const mergeFailed = /(^|\n)fatal:|(^|\n)error:/i.test(mergeOutput);
+  const unmergedRaw = gitOut(workspace, ["diff", "--name-only", "--diff-filter", "U"], true);
+  const paths = unmergedRaw
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (mergeFailed && paths.length === 0) {
     gitOut(workspace, ["merge", "--abort"], true);
-    if (originalBranch) {
-      gitOut(workspace, ["checkout", "-f", originalBranch], true);
-    }
+    throw new Error(`git merge failed without unmerged files: ${mergeOutput.trim()}`);
   }
+  const out: Record<string, GitHydratePair> = {};
+  for (const relPath of paths) {
+    if (Object.keys(out).length >= maxFiles) {
+      break;
+    }
+    if (!isProbablyTextPath(relPath)) {
+      continue;
+    }
+    const absPath = path.join(workspace, relPath);
+    if (!fs.existsSync(absPath)) {
+      continue;
+    }
+    const mergedText = fs.readFileSync(absPath, "utf8");
+    const mergedLines = mergedText.split(/\r?\n/);
+    if (mergedLines.length > 0 && mergedLines[mergedLines.length - 1] === "") {
+      mergedLines.pop();
+    }
+    if (!hasConflictMarkers(mergedLines)) {
+      continue;
+    }
+    const blocks = parseGitConflicts(mergedText);
+    const annotated = gitConflictBlocksToTonicAnnotatedPreview(blocks, {
+      repoRoot: workspace,
+      leftRef: baseSha,
+      rightRef: headSha,
+      ...gitMergeHydration,
+    });
+    out[relPath] = {
+      leftLines: readStageLines(workspace, "2", relPath),
+      rightLines: readStageLines(workspace, "3", relPath),
+      status: "unmerged",
+      gitAnnotatedLines: annotated,
+      mergedLines,
+    };
+  }
+  gitOut(workspace, ["merge", "--abort"], true);
+  return out;
 }

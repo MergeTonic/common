@@ -135,8 +135,6 @@ runs:
           git -C "${ISO_DIR}" checkout --detach "${TARGET_BASE_SHA}"
         fi
         git -C "${ISO_DIR}" checkout -B "tonic/agent/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${TARGET_BASE_SHA:0:7}" "${TARGET_BASE_SHA}"
-        git -C "${ISO_DIR}" config user.name "github-actions[bot]"
-        git -C "${ISO_DIR}" config user.email "github-actions[bot]@users.noreply.github.com"
         {
           echo "TONIC_AGENT_ISOLATED_WORKSPACE=${ISO_DIR}"
           echo "TONIC_TARGET_HEAD_SHA=${TARGET_HEAD_SHA}"

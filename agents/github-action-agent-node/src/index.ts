@@ -237,10 +237,9 @@ async function orchestrateRunPr(params: {
   headSha: string;
   title: string;
 }): Promise<{ targetPrNumber: number; targetHeadSha: string; branchName: string }> {
-  let branchName = runGit(params.workspace, ["branch", "--show-current"]).trim();
+  const branchName = runGit(params.workspace, ["branch", "--show-current"]).trim();
   if (!branchName) {
-    branchName = `tonic/agent/${params.runId}-${params.baseSha.slice(0, 7)}`;
-    runGit(params.workspace, ["checkout", "-B", branchName, params.baseSha]);
+    throw new Error("isolated branch name is empty");
   }
   const payloadDir = path.join(params.workspace, ".tonic-agent", "runs");
   fs.mkdirSync(payloadDir, { recursive: true });
@@ -638,7 +637,7 @@ export async function main(): Promise<void> {
         let usedAi = false;
         if (!isOrphan && enableAi) {
           try {
-            const content = await resolveConflictWithOpenAi(cf, reg, oldLines.length);
+            const content = await resolveConflictWithOpenAi(cf, reg);
             if (content) {
               const parsed = parseResolvedLinesFromAi(content);
               if (parsed.lines.length) {

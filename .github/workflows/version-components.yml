@@ -47,7 +47,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "release/bump-${{ inputs.component }}"
-          git add .
+          BUMP_FILE="$(python -c 'import json; print(json.load(open("bump.json"))["file"])')"
+          git add -- "${BUMP_FILE}" CHANGELOG.components.md
           git commit -m "chore(release): bump ${{ inputs.component }} version"
           git push -u origin "release/bump-${{ inputs.component }}"
           gh pr create --title "chore(release): bump ${{ inputs.component }}" --body "Automated component version bump."
