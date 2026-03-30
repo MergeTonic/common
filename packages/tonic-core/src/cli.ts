@@ -32,7 +32,8 @@ function usage(): void {
   merge-tonic apply --file <path> [--write] [--path <logicalPath>] [--sidecar <json>] [--report <json>]
   merge-tonic conflicts [--file <path>|-]   (default: stdin)
   merge-tonic report --left <file> --right <file> [--out <file>] [--path <logicalPath>]
-  merge-tonic git [--repo <dir>] fetch|compare|materialize|from-index|merge|worktree ...
+  merge-tonic git [--repo <dir>] fetch|compare|materialize|from-index|hydrate-intents|merge|worktree ...
+  merge-tonic git hydrate-intents [--check-optional-ai] [--out-json <path>] [--vendoring-scaffold] [--intent-text <text>] [--intent-spec <path>] [--scope <glob-or-path>] [--dry-run] [--prompt-profile <name>] [--log-llm <path>] [--historical-max-prs <n>] [--historical-since <ref-or-date>] [--historical-base-ref <ref>] [--historical-state <merged|open|all>] [--max-questions <n>] [--query-top-k <n>] [--downstream-task <text>]
   merge-tonic github ref create --repo owner/name --ref refs/heads/b --sha <sha>  (needs GITHUB_TOKEN)
   Legacy: first argument may be "merge-tonic", "tonic-merge", or "mt" (ignored).`);
 }

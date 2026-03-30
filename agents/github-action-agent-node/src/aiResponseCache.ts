@@ -81,7 +81,12 @@ export class AiResponseCacheFacade {
     return new AiResponseCacheFacade(new DiskAiResolutionCache(base, ttlSeconds), enabled);
   }
 
-  getConflict(model: string, conflictFile: ConflictFile, conflict: ConflictRegion): CachedAiResponse | null {
+  getConflict(
+    model: string,
+    conflictFile: ConflictFile,
+    conflict: ConflictRegion,
+    expectedResolvedLineCount?: number,
+  ): CachedAiResponse | null {
     if (!this.enabled) {
       return null;
     }
@@ -91,6 +96,7 @@ export class AiResponseCacheFacade {
       conflictFile.path,
       String(conflict.startLine),
       String(conflict.endLine),
+      expectedResolvedLineCount == null ? "" : String(expectedResolvedLineCount),
       conflict.leftContent ?? "",
       conflict.rightContent ?? "",
     );
@@ -102,6 +108,7 @@ export class AiResponseCacheFacade {
     conflictFile: ConflictFile,
     conflict: ConflictRegion,
     r: CachedAiResponse,
+    expectedResolvedLineCount?: number,
   ): void {
     if (!this.enabled) {
       return;
@@ -112,6 +119,7 @@ export class AiResponseCacheFacade {
       conflictFile.path,
       String(conflict.startLine),
       String(conflict.endLine),
+      expectedResolvedLineCount == null ? "" : String(expectedResolvedLineCount),
       conflict.leftContent ?? "",
       conflict.rightContent ?? "",
     );

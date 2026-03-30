@@ -1,12 +1,6 @@
 name: CI JS core (@mergetonic/core)
 
 on:
-  push:
-    paths:
-      - "packages/tonic-core/**"
-      - "merge-tonic-lib/**"
-      - "docs/**"
-      - ".github/workflows/ci-js-core.yml"
   pull_request:
     paths:
       - "packages/tonic-core/**"

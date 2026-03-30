@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ConflictFile, ConflictRegion } from "@mergetonic/core";
 import {
+  buildExpectedResolvedLineCountGuidance,
   buildConflictUserMessage,
   buildSystemPromptBody,
   determineFileType,
@@ -34,6 +35,28 @@ test("buildConflictUserMessage default template includes kind suffix and labels"
   assert.match(msg, /LEFT \(alice\):/);
   assert.match(msg, /RIGHT \(bob\):/);
   assert.match(msg, /\(added left\)/);
+});
+
+test("buildConflictUserMessage appends expected line count guidance only when provided", () => {
+  const cf: ConflictFile = {
+    path: "t.py",
+    conflicts: [],
+    content: "",
+    leftLabel: "left",
+    rightLabel: "right",
+  };
+  const reg: ConflictRegion = {
+    baseContent: "",
+    leftContent: "a",
+    rightContent: "b",
+    startLine: 4,
+    endLine: 6,
+    conflictKind: "added both",
+  };
+  const msg = buildConflictUserMessage(cf, reg, "enhanced", 3);
+  assert.match(msg, /exactly 3 lines in resolved_lines/i);
+  assert.equal(buildExpectedResolvedLineCountGuidance(undefined), "");
+  assert.equal(buildExpectedResolvedLineCountGuidance(0), "");
 });
 
 test("githubJsonResponseSuffix mentions resolved_lines", () => {

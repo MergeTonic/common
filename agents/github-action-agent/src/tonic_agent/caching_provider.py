@@ -25,13 +25,29 @@ class CachingAIProvider:
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
+        expected_resolved_line_count: int | None = None,
     ) -> AIResponse:
         model = self._inner.config().model
-        hit = self._cache.get_conflict(model, conflict_file, conflict)
+        hit = self._cache.get_conflict(
+            model,
+            conflict_file,
+            conflict,
+            expected_resolved_line_count=expected_resolved_line_count,
+        )
         if hit is not None:
             return hit
-        r = self._inner.resolve_conflict(conflict_file, conflict)
-        self._cache.put_conflict(model, conflict_file, conflict, r)
+        r = self._inner.resolve_conflict(
+            conflict_file,
+            conflict,
+            expected_resolved_line_count=expected_resolved_line_count,
+        )
+        self._cache.put_conflict(
+            model,
+            conflict_file,
+            conflict,
+            r,
+            expected_resolved_line_count=expected_resolved_line_count,
+        )
         return r
 
     def resolve_file(self, conflict_file: ConflictFile) -> AIResponse:

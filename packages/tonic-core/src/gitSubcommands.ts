@@ -17,6 +17,16 @@ import {
   DEFAULT_GIT_MERGE_LEFT_INTENT,
   DEFAULT_GIT_MERGE_RIGHT_INTENT,
 } from "./markerInterop";
+import {
+  HYDRATION_OPTIONAL_AI_EXIT_CODE,
+  buildMissingOptionalAiDependencySkipResult,
+  probeHydrationOptionalAiDependency,
+  resolveHydrationRuntimeConfig,
+  runHydrateIntentsMachineMode,
+} from "./hydration";
+import type {
+  HydrationHistoricalOptions,
+} from "./hydration";
 
 function normLines(s: string): string[] {
   const lines = s.split(/\r?\n/);
@@ -231,6 +241,71 @@ async function resolveCompareMaterializeHydration(
 
 export async function gitCmdHydrateIntents(repoRoot: string, argv: string[]): Promise<number> {
   const m = parseArgs(argv);
+  const checkOptionalAi = m.flags.has("check_optional_ai");
+  const outJsonPath = getOpt(m, "out_json", "").trim();
+  const machineMode = true;
+  const writeOut = (text: string): void => {
+    if (outJsonPath) {
+      fs.mkdirSync(path.dirname(outJsonPath), { recursive: true });
+      fs.writeFileSync(outJsonPath, text + "\n", "utf8");
+    } else {
+      console.log(text);
+    }
+  };
+  if (checkOptionalAi) {
+    const runtime = resolveHydrationRuntimeConfig(repoRoot);
+    if (runtime.mode !== "memory") {
+      const probe = probeHydrationOptionalAiDependency();
+      if (!probe.available) {
+        const skip = buildMissingOptionalAiDependencySkipResult(repoRoot, probe.installHint);
+        const text = JSON.stringify(skip, null, 2);
+        writeOut(text);
+        return HYDRATION_OPTIONAL_AI_EXIT_CODE;
+      }
+    }
+    const okPayload = {
+      ok: true,
+      optional_dependency_group: "ai",
+      runtime_mode: runtime.mode,
+      hydration_skipped: false,
+    };
+    const text = JSON.stringify(okPayload, null, 2);
+    writeOut(text);
+    return 0;
+  }
+  if (machineMode) {
+    const maxQuestionsRaw = parseInt(getOpt(m, "max_questions", "3"), 10);
+    const maxQuestions = Number.isFinite(maxQuestionsRaw) && maxQuestionsRaw > 0 ? maxQuestionsRaw : 3;
+    const topKRaw = parseInt(getOpt(m, "query_top_k", "5"), 10);
+    const queryTopK = Number.isFinite(topKRaw) && topKRaw > 0 ? topKRaw : 5;
+    const downstreamTask = getOpt(m, "downstream_task", "").trim() || "hydrate intent tags for current repository context";
+    const historicalMaxPrsRaw = parseInt(getOpt(m, "historical_max_prs", "0"), 10);
+    const historicalStateRaw = getOpt(m, "historical_state", "merged").trim();
+    const historicalState: HydrationHistoricalOptions["state"] =
+      historicalStateRaw === "open" || historicalStateRaw === "all" ? historicalStateRaw : "merged";
+    const historical: HydrationHistoricalOptions = {
+      max_prs: Number.isFinite(historicalMaxPrsRaw) && historicalMaxPrsRaw > 0 ? historicalMaxPrsRaw : 0,
+      since: getOpt(m, "historical_since", "").trim() || undefined,
+      base_ref: getOpt(m, "historical_base_ref", "").trim() || undefined,
+      state: historicalState,
+    };
+    const result = await runHydrateIntentsMachineMode(repoRoot, {
+      intent_text: getOpt(m, "intent_text", "").trim(),
+      intent_spec: getOpt(m, "intent_spec", "").trim() || undefined,
+      scope: getOpt(m, "scope", "").trim() || undefined,
+      dry_run: m.flags.has("dry_run"),
+      prompt_profile: getOpt(m, "prompt_profile", "").trim() || undefined,
+      log_llm: getOpt(m, "log_llm", "").trim() || undefined,
+      max_questions: maxQuestions,
+      query_top_k: queryTopK,
+      downstream_task: downstreamTask,
+      historical,
+      vendoring_scaffold: m.flags.has("vendoring_scaffold"),
+    });
+    const payload = result.payload;
+    writeOut(JSON.stringify(payload, null, 2));
+    return result.exitCode;
+  }
   const profilePath =
     getOpt(m, "intent_profile", "").trim() || path.join(repoRoot, DEFAULT_INTENT_PROFILE_PATH);
   const defaults = loadIntentProfile(profilePath);

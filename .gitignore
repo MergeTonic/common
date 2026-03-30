@@ -1,3 +1,4 @@
+# **/_tmp_*/
 # Node / JS deps
 node_modules/
 **/node_modules/
@@ -33,6 +34,20 @@ nosetests.xml
 *.lcov
 logs
 .cursor
+.tonic/chroma_db/
+.tonic/hydration-runs/
+tests/_tmp_*/
+merge-tonic-lib/tests/_tmp_chroma_client/
+merge-tonic-lib/tests/_tmp_cli/
+merge-tonic-lib/tests/_tmp_indexer/
+merge-tonic-lib/tests/_tmp_persistence/
+merge-tonic-lib/tests/_tmp_run_state/
+merge-tonic-lib/tests/_tmp_runtime/
+src/test/_tmp_hydration_indexer/
+src/test/_tmp_hydration_run_state/
+src/test/_tmp_*/
+packages/tonic-core/src/test/_tmp_hydration_indexer/
+packages/tonic-core/src/test/_tmp_hydration_run_state/
 
 # Secrets & local env (keep *.example committed as templates)
 .env

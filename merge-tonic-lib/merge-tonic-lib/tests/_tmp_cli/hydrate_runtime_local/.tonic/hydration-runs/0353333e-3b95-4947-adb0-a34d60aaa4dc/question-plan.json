@@ -1,0 +1,19 @@
+{
+  "downstream_task": "hydrate intent tags for current repository context",
+  "max_questions": 2,
+  "branch_intent_count": 1,
+  "question_slots": [
+    {
+      "id": "q-1",
+      "question": "Which files, modules, or entrypoints implement or affect this intent: map feature hydration context?",
+      "strategy": "template"
+    },
+    {
+      "id": "q-2",
+      "question": "Which exported symbols or declarations are central to this intent: map feature hydration context?",
+      "strategy": "template"
+    }
+  ],
+  "pipeline_version": "1",
+  "schema": "tonic-hydration-question-plan"
+}

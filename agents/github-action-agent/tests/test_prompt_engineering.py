@@ -5,6 +5,7 @@ import pytest
 from tonic_agent.prompt_engineering import (
     PromptGenerator,
     PromptTemplate,
+    build_expected_resolved_line_count_guidance,
     determine_file_type,
     prompt_template_from_env,
 )
@@ -77,3 +78,22 @@ def test_conflict_prompt_uses_custom_left_right_labels():
     p = g.generate_conflict_prompt(cf, c)
     assert "LEFT (alice):" in p
     assert "RIGHT (bob):" in p
+
+
+def test_conflict_prompt_appends_expected_line_count_guidance():
+    from tonic_agent.models import ConflictFile, ConflictRegion
+
+    cf = ConflictFile(path="t.py", conflicts=[], content="")
+    c = ConflictRegion(
+        base_content="",
+        left_content="a",
+        right_content="b",
+        start_line=1,
+        end_line=2,
+        conflict_kind="added both",
+    )
+    g = PromptGenerator(PromptTemplate.Enhanced)
+    p = g.generate_conflict_prompt(cf, c, expected_resolved_line_count=3)
+    assert "exactly 3 lines in resolved_lines" in p
+    assert build_expected_resolved_line_count_guidance(None) == ""
+    assert build_expected_resolved_line_count_guidance(0) == ""
