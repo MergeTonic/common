@@ -173,10 +173,15 @@ function collectTreeSitterSegments(filePath: string, content: string): ChunkSegm
     const segments: ChunkSegment[] = [];
     let cursor = 0;
     for (const node of nodes) {
-      const safeStart = Math.max(0, Math.min(content.length, node.startIndex));
+      let safeStart = Math.max(0, Math.min(content.length, node.startIndex));
       const safeEnd = Math.max(safeStart, Math.min(content.length, node.endIndex));
       if (cursor < safeStart) {
-        segments.push({ startIndex: cursor, endIndex: safeStart });
+        const prefix = content.slice(cursor, safeStart);
+        if (isIgnorableDeclarationPrefix(prefix)) {
+          safeStart = cursor;
+        } else {
+          segments.push({ startIndex: cursor, endIndex: safeStart });
+        }
       }
       const symbol = node.childForFieldName?.("name")?.text?.trim();
       segments.push({
@@ -193,6 +198,18 @@ function collectTreeSitterSegments(filePath: string, content: string): ChunkSegm
   } catch {
     return null;
   }
+}
+
+function isIgnorableDeclarationPrefix(fragment: string): boolean {
+  const normalized = fragment.trim();
+  if (!normalized) {
+    return true;
+  }
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return true;
+  }
+  return tokens.every((token) => token === "export" || token === "default" || token === "declare");
 }
 
 function collectRegexDeclarationSegments(content: string): ChunkSegment[] {

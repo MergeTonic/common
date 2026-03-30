@@ -114,6 +114,27 @@ function loadGitignoreText(repoRoot: string): string | null {
   }
 }
 
+function normalizeAbsolutePathForCompare(filePath: string): string {
+  return path.resolve(filePath).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
+function resolveGitToplevel(repoRoot: string): string | null {
+  try {
+    const output = execFileSync(
+      "git",
+      ["-C", repoRoot, "rev-parse", "--show-toplevel"],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    const value = String(output).trim();
+    return value ? path.resolve(value) : null;
+  } catch {
+    return null;
+  }
+}
+
 function walkFallback(repoRoot: string, denyPathPrefixes: string[], gitignoreText: string | null): string[] {
   const out: string[] = [];
   const stack = [repoRoot];
@@ -165,6 +186,15 @@ export class HydrationRepository {
   listIndexablePaths(): string[] {
     const gitignoreText = loadGitignoreText(this.repoRoot);
     try {
+      const gitToplevel = resolveGitToplevel(this.repoRoot);
+      // Keep repoRoot as the isolation boundary. Nested directories inside a larger git repo
+      // can inherit parent ignore rules that incorrectly hide local hydration workspace files.
+      if (
+        !gitToplevel
+        || normalizeAbsolutePathForCompare(gitToplevel) !== normalizeAbsolutePathForCompare(this.repoRoot)
+      ) {
+        throw new Error("repoRoot is not git toplevel");
+      }
       const output = execFileSync(
         "git",
         ["-C", this.repoRoot, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],

@@ -27,8 +27,16 @@ def _normalize_mode(raw: str | None) -> HydrationRuntimeMode:
     return "http"
 
 
+def _cross_platform_basename(value: str | Path) -> str:
+    raw = str(value or "").strip()
+    parts = [part for part in raw.replace("\\", "/").split("/") if part]
+    if parts:
+        return parts[-1]
+    return Path(raw or ".").resolve().name
+
+
 def default_hydration_collection_name(repo_root: str | Path) -> str:
-    base = Path(repo_root).resolve().name.lower()
+    base = _cross_platform_basename(repo_root).lower()
     safe = "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in base).strip("-")
     return f"{safe or 'repo'}-hydration"
 

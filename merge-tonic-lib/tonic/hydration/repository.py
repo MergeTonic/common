@@ -36,7 +36,10 @@ class HydrationRepositoryFile:
 
 
 def _normalize_relative_path(value: str) -> str:
-    return value.replace("\\", "/").lstrip("./").lstrip("/")
+    normalized = value.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized.lstrip("/")
 
 
 def _hash_content(content: str) -> str:
@@ -116,6 +119,22 @@ def _walk_fallback(repo_root: Path, deny_path_prefixes: list[str], gitignore_tex
     return out
 
 
+def _load_git_toplevel(repo_root: Path) -> Path | None:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--show-toplevel"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        value = (proc.stdout or "").strip()
+        if not value:
+            return None
+        return Path(value).resolve()
+    except Exception:
+        return None
+
+
 class HydrationRepository:
     def __init__(
         self,
@@ -138,6 +157,12 @@ class HydrationRepository:
     def list_indexable_paths(self) -> list[str]:
         gitignore_text = _load_gitignore_text(self.repo_root)
         try:
+            git_toplevel = _load_git_toplevel(self.repo_root)
+            # Treat repo_root as an isolated workspace boundary.
+            # If it's only a nested directory of a larger git repo, git ignore rules from the parent
+            # can hide files that should remain indexable for this workspace (e.g., CI temp roots).
+            if git_toplevel is None or git_toplevel != self.repo_root:
+                raise RuntimeError("repo_root is not git toplevel; use filesystem fallback")
             proc = subprocess.run(
                 [
                     "git",
@@ -198,6 +223,8 @@ class HydrationRepository:
         out: list[HydrationRepositoryFile] = []
         for relative_path in self.list_indexable_paths():
             absolute_path = self.repo_root / relative_path
+            if not absolute_path.is_file():
+                continue
             buffer = absolute_path.read_bytes()
             if len(buffer) > self.max_file_bytes or not _looks_like_text(buffer):
                 continue

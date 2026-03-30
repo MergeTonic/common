@@ -22,7 +22,10 @@ function normalizeMode(raw: string | undefined): HydrationRuntimeMode {
 }
 
 export function defaultHydrationCollectionName(repoRoot: string): string {
-  const base = path.basename(path.resolve(repoRoot)).toLowerCase();
+  const raw = String(repoRoot ?? "").trim();
+  const slashNormalized = raw.replace(/\\/g, "/");
+  const explicitBase = slashNormalized.split("/").filter(Boolean).pop() ?? "";
+  const base = (explicitBase || path.basename(path.resolve(raw || "."))).toLowerCase();
   const safe = base.replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   return `${safe || "repo"}-hydration`;
 }
