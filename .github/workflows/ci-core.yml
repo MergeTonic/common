@@ -1,12 +1,6 @@
 name: CI Core (tonic)
 
 on:
-  push:
-    paths:
-      - "merge-tonic-lib/**"
-      - "packages/tonic-core/**"
-      - "docs/**"
-      - ".github/workflows/ci-core.yml"
   pull_request:
     paths:
       - "merge-tonic-lib/**"
