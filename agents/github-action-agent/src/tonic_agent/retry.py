@@ -101,16 +101,11 @@ class RetryableProvider:
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
-        expected_resolved_line_count: int | None = None,
     ) -> AIResponse:
         last_err: Exception | None = None
         for attempt in range(self._config.max_retries + 1):
             try:
-                return self._inner.resolve_conflict(
-                    conflict_file,
-                    conflict,
-                    expected_resolved_line_count=expected_resolved_line_count,
-                )
+                return self._inner.resolve_conflict(conflict_file, conflict)
             except Exception as e:
                 last_err = e
                 msg = str(e)

@@ -79,12 +79,9 @@ merge-tonic git --repo . merge --ref main
 merge-tonic g m main
 merge-tonic g wt add ../wt main
 merge-tonic git --repo . from-index --write
-merge-tonic git --repo . hydrate-intents --check-optional-ai --out-json hydration-check.json
 ```
 
 Subcommands include `merge`, `apply`, `conflicts`, `report`, `git` (`fetch`, `compare`, `materialize`, `from-index`, `merge`, `worktree`), and `github ref create` (needs `GITHUB_TOKEN`). Top-level aliases (`m`,`a`,`c`,`r`,`g`) and git aliases (`f`,`mat`,`fi`,`m`,`wt`) are supported across Python/TS CLIs, along with short flags and positional marker-optional forms where unambiguous. The first argument may be `merge-tonic`, `tonic-merge`, or `mt` for compatibility/shorthand. You can also use `python -m tonic.cli ...` with an editable or sdist install.
-
-Hydration Chroma pinning and readiness contract: [docs/hydration-chroma-runtime.md](docs/hydration-chroma-runtime.md).
 
 Branch-oriented marker flow example (while on `dev`):
 

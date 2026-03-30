@@ -36,17 +36,11 @@ class PromptGenerator:
             return custom
         return prompt_bundle.system_prompt_body(self._bk)
 
-    def generate_conflict_prompt(
-        self,
-        conflict_file: ConflictFile,
-        conflict: ConflictRegion,
-        *,
-        expected_resolved_line_count: int | None = None,
-    ) -> str:
+    def generate_conflict_prompt(self, conflict_file: ConflictFile, conflict: ConflictRegion) -> str:
         match self.template:
             case PromptTemplate.Default:
                 kind_suffix = f" ({conflict.conflict_kind})" if conflict.conflict_kind else ""
-                message = prompt_bundle.format_conflict_user(
+                return prompt_bundle.format_conflict_user(
                     self._bk,
                     path=conflict_file.path,
                     start_line=str(conflict.start_line),
@@ -57,11 +51,10 @@ class PromptGenerator:
                     left_content=conflict.left_content,
                     right_content=conflict.right_content,
                 )
-                return _append_line_count_guidance(message, expected_resolved_line_count)
             case PromptTemplate.Enhanced:
                 kind = conflict.conflict_kind or "unspecified"
                 ft = determine_file_type(conflict_file.path)
-                message = prompt_bundle.format_conflict_user(
+                return prompt_bundle.format_conflict_user(
                     self._bk,
                     path=conflict_file.path,
                     start_line=str(conflict.start_line),
@@ -73,7 +66,6 @@ class PromptGenerator:
                     left_content=conflict.left_content,
                     right_content=conflict.right_content,
                 )
-                return _append_line_count_guidance(message, expected_resolved_line_count)
             case PromptTemplate.ContextAware:
                 base_section = (
                     f"BASE VERSION (common ancestor):\n```\n{conflict.base_content}```\n\n"
@@ -86,7 +78,7 @@ class PromptGenerator:
                 )
                 ft = determine_file_type(conflict_file.path)
                 kind = conflict.conflict_kind or "unspecified"
-                message = prompt_bundle.format_conflict_user(
+                return prompt_bundle.format_conflict_user(
                     self._bk,
                     path=conflict_file.path,
                     start_line=str(conflict.start_line),
@@ -100,7 +92,6 @@ class PromptGenerator:
                     left_content=conflict.left_content,
                     right_content=conflict.right_content,
                 )
-                return _append_line_count_guidance(message, expected_resolved_line_count)
 
     def generate_file_prompt(self, conflict_file: ConflictFile) -> str:
         match self.template:
@@ -190,24 +181,6 @@ def extract_surrounding_context(conflict_file: ConflictFile, conflict: ConflictR
     start = max(0, conflict.start_line - 3)
     end = min(len(lines), conflict.end_line + 2)
     return "\n".join(lines[start:end])
-
-
-def build_expected_resolved_line_count_guidance(expected_resolved_line_count: int | None) -> str:
-    if expected_resolved_line_count is None or expected_resolved_line_count <= 0:
-        return ""
-    noun = "line" if expected_resolved_line_count == 1 else "lines"
-    return (
-        "Important output constraint: return exactly "
-        f"{expected_resolved_line_count} {noun} in resolved_lines so the "
-        "suggestion matches the current head-side span length."
-    )
-
-
-def _append_line_count_guidance(message: str, expected_resolved_line_count: int | None) -> str:
-    guidance = build_expected_resolved_line_count_guidance(expected_resolved_line_count)
-    if not guidance:
-        return message
-    return f"{message}\n\n{guidance}"
 
 
 def prompt_template_from_env() -> PromptTemplate:

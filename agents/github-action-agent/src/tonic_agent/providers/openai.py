@@ -103,13 +103,8 @@ class OpenAICompatibleProvider:
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
-        expected_resolved_line_count: int | None = None,
     ) -> AIResponse:
-        user = self._prompt.generate_conflict_prompt(
-            conflict_file,
-            conflict,
-            expected_resolved_line_count=expected_resolved_line_count,
-        )
+        user = self._prompt.generate_conflict_prompt(conflict_file, conflict)
         messages = [
             {"role": "system", "content": self._system_prompt() + prompt_bundle.github_json_response_suffix()},
             {"role": "user", "content": user},

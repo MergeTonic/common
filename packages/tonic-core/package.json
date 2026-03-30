@@ -27,13 +27,8 @@
   ],
   "scripts": {
     "build": "tsc -p .",
-    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/markerLabel.test.js dist/test/cli.test.js dist/test/hydrationRuntime.test.js dist/test/hydrationChunker.test.js dist/test/hydrationPromptBundle.test.js dist/test/hydrationAstCandidates.test.js dist/test/hydrationAgenticCodeSearch.test.js dist/test/hydrationIndexer.test.js dist/test/hydrationRunState.test.js dist/test/hydrationChromaClient.test.js dist/test/hydrationPersistence.test.js",
+    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/markerLabel.test.js dist/test/cli.test.js",
     "prepublishOnly": "npm run build"
-  },
-  "optionalDependencies": {
-    "chromadb": "0.5.23",
-    "tree-sitter": "^0.25.0",
-    "tree-sitter-typescript": "^0.23.2"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

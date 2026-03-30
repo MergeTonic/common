@@ -1,6 +1,6 @@
 import type { ConflictFile, ConflictRegion } from "@mergetonic/core";
 
-import { loadConflictPrompts } from "./conflictPromptLoader";
+import bundleJson from "./data/aiPrompts.v1.json";
 
 type BundleV1 = {
   schema_version: number;
@@ -10,7 +10,7 @@ type BundleV1 = {
   file_user: Record<"default" | "enhanced" | "context_aware", string>;
 };
 
-const bundle = loadConflictPrompts() as BundleV1;
+const bundle = bundleJson as BundleV1;
 
 export type PromptTemplateEnv = "default" | "enhanced" | "context-aware";
 
@@ -50,22 +50,6 @@ export function githubJsonResponseSuffix(): string {
 
 export function buildSystemPromptBody(template: PromptTemplateEnv): string {
   return bundle.system_prompts[bundleKey(template)];
-}
-
-export function buildExpectedResolvedLineCountGuidance(
-  expectedResolvedLineCount?: number,
-): string {
-  if (!Number.isInteger(expectedResolvedLineCount) || expectedResolvedLineCount === undefined) {
-    return "";
-  }
-  if (expectedResolvedLineCount <= 0) {
-    return "";
-  }
-  const noun = expectedResolvedLineCount === 1 ? "line" : "lines";
-  return (
-    `Important output constraint: return exactly ${expectedResolvedLineCount} ` +
-    `${noun} in resolved_lines so the suggestion matches the current head-side span length.`
-  );
 }
 
 export function determineFileType(filePath: string): string {
@@ -110,17 +94,15 @@ export function buildConflictUserMessage(
   cf: ConflictFile,
   conflict: ConflictRegion,
   template: PromptTemplateEnv,
-  expectedResolvedLineCount?: number,
 ): string {
   const leftLabel = cf.leftLabel ?? "left";
   const rightLabel = cf.rightLabel ?? "right";
   const bk = bundleKey(template);
   const tpl = bundle.conflict_user[bk];
-  const lineCountGuidance = buildExpectedResolvedLineCountGuidance(expectedResolvedLineCount);
 
   if (template === "default") {
     const kindSuffix = conflict.conflictKind ? ` (${conflict.conflictKind})` : "";
-    const message = formatTpl(tpl, {
+    return formatTpl(tpl, {
       path: cf.path,
       start_line: String(conflict.startLine),
       end_line: String(conflict.endLine),
@@ -130,13 +112,12 @@ export function buildConflictUserMessage(
       left_content: conflict.leftContent ?? "",
       right_content: conflict.rightContent ?? "",
     });
-    return lineCountGuidance ? `${message}\n\n${lineCountGuidance}` : message;
   }
 
   if (template === "enhanced") {
     const kind = conflict.conflictKind || "unspecified";
     const ft = determineFileType(cf.path);
-    const message = formatTpl(tpl, {
+    return formatTpl(tpl, {
       path: cf.path,
       start_line: String(conflict.startLine),
       end_line: String(conflict.endLine),
@@ -147,7 +128,6 @@ export function buildConflictUserMessage(
       left_content: conflict.leftContent ?? "",
       right_content: conflict.rightContent ?? "",
     });
-    return lineCountGuidance ? `${message}\n\n${lineCountGuidance}` : message;
   }
 
   const baseSection =
@@ -160,7 +140,7 @@ export function buildConflictUserMessage(
     : "";
   const kind = conflict.conflictKind || "unspecified";
   const ft = determineFileType(cf.path);
-  const message = formatTpl(tpl, {
+  return formatTpl(tpl, {
     path: cf.path,
     start_line: String(conflict.startLine),
     end_line: String(conflict.endLine),
@@ -173,7 +153,6 @@ export function buildConflictUserMessage(
     left_content: conflict.leftContent ?? "",
     right_content: conflict.rightContent ?? "",
   });
-  return lineCountGuidance ? `${message}\n\n${lineCountGuidance}` : message;
 }
 
 export function buildFileUserMessage(cf: ConflictFile, template: PromptTemplateEnv): string {

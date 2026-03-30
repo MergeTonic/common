@@ -1,8 +1,4 @@
-"""Load shared conflict-AI prompt strings from vendored JSON.
-
-The canonical conflict bundle stays synced from `agents/shared-tonic-ai-prompts/`.
-Hydration prompt bundles live with their owning CLI packages and are loaded separately.
-"""
+"""Load shared AI prompt strings from vendored JSON (synced from agents/shared-tonic-ai-prompts/)."""
 
 from __future__ import annotations
 
@@ -19,10 +15,6 @@ def _load_bundle() -> dict[str, Any]:
         raw = resources.files("tonic_agent.data").joinpath("ai_prompts.v1.json").read_text(encoding="utf-8")
         _bundle = json.loads(raw)
     return _bundle
-
-
-def load_conflict_prompt_bundle() -> dict[str, Any]:
-    return _load_bundle()
 
 
 def github_json_response_suffix() -> str:

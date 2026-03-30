@@ -13,6 +13,7 @@ import urllib.request
 from typing import Any
 
 COMMENT_MARKER = "<!-- mergetonic:contributor-policy-gate -->"
+IGNORED_SERVICE_LOGINS = {"web-flow"}
 
 
 def _api_request(
@@ -57,6 +58,20 @@ def _parse_coauthors(message: str) -> set[str]:
     return out
 
 
+def _is_human_contributor(login: str | None) -> bool:
+    if not login:
+        return False
+    normalized = login.strip().lower()
+    if not normalized:
+        return False
+    if normalized in IGNORED_SERVICE_LOGINS:
+        return False
+    # GitHub bot accounts are represented as "*[bot]".
+    if normalized.endswith("[bot]"):
+        return False
+    return True
+
+
 def _collect_pr_contributors(repo: str, pr_number: int, token: str) -> list[str]:
     url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/commits?per_page=100"
     commits = _api_request("GET", url, token)
@@ -64,44 +79,21 @@ def _collect_pr_contributors(repo: str, pr_number: int, token: str) -> list[str]
     for c in commits:
         author = (c.get("author") or {}).get("login")
         committer = (c.get("committer") or {}).get("login")
-        if author:
+        if _is_human_contributor(author):
             users.add(author.lower())
-        if committer:
+        if _is_human_contributor(committer):
             users.add(committer.lower())
         msg = ((c.get("commit") or {}).get("message") or "")
-        users.update(_parse_coauthors(msg))
+        users.update(u for u in _parse_coauthors(msg) if _is_human_contributor(u))
     return sorted(users)
 
 
-def _load_canonical_registry_at_ref(common_repo: str, common_ref: str, token: str) -> dict[str, Any]:
+def _load_canonical_registry(common_repo: str, common_ref: str, token: str) -> dict[str, Any]:
     path = urllib.parse.quote(".github/contributor-acceptance.json", safe="")
-    ref_q = urllib.parse.quote(common_ref, safe="")
-    url = f"https://api.github.com/repos/{common_repo}/contents/{path}?ref={ref_q}"
+    url = f"https://api.github.com/repos/{common_repo}/contents/{path}?ref={urllib.parse.quote(common_ref)}"
     obj = _api_request("GET", url, token)
     content = base64.b64decode(obj["content"]).decode("utf-8")
     return json.loads(content)
-
-
-def _get_default_branch(common_repo: str, token: str) -> str:
-    repo = _api_request("GET", f"https://api.github.com/repos/{common_repo}", token)
-    return str(repo.get("default_branch") or "").strip()
-
-
-def _load_canonical_registry(common_repo: str, common_ref: str, token: str) -> dict[str, Any]:
-    requested_ref = common_ref.strip()
-    fallback_error: urllib.error.HTTPError | None = None
-    try:
-        return _load_canonical_registry_at_ref(common_repo, requested_ref, token)
-    except urllib.error.HTTPError as err:
-        if err.code != 404:
-            raise
-        fallback_error = err
-    default_ref = _get_default_branch(common_repo, token)
-    if not default_ref or default_ref == requested_ref:
-        if fallback_error is not None:
-            raise fallback_error
-        raise RuntimeError("unable to resolve common repository default branch")
-    return _load_canonical_registry_at_ref(common_repo, default_ref, token)
 
 
 def _accepted_logins(registry: dict[str, Any]) -> set[str]:

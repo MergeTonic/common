@@ -1,7 +1,0 @@
-{
-  "server_image": "chromadb/chroma:0.5.23",
-  "python_chromadb": "0.5.23",
-  "npm_chromadb": "0.5.23",
-  "heartbeat_path": "/api/v2/heartbeat",
-  "optional_dependency_group": "ai"
-}
