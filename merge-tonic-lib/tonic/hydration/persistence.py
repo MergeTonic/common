@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -130,7 +130,7 @@ def write_hydration_persist_manifest(
         writer_kind=writer_kind,
         cache_key=cache_key,
         entries=entries,
-        updated_at=datetime.now(UTC).isoformat(),
+        updated_at=datetime.now(timezone.utc).isoformat(),
     )
     resolve_hydration_persist_manifest_path(root).write_text(
         json.dumps(asdict(manifest), indent=2) + "\n",
@@ -233,7 +233,7 @@ def acquire_hydration_persist_lock(persist_root: str | Path, owner: str) -> Hydr
         "owner": owner,
         "token": token,
         "pid": str(__import__("os").getpid()),
-        "acquired_at": datetime.now(UTC).isoformat(),
+        "acquired_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
         with lock_path.open("x", encoding="utf-8") as handle:

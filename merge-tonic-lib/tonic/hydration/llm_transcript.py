@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -13,7 +13,7 @@ def append_hydration_llm_transcript_event(run: HydrationPipelineRun, **event: ob
     target = Path(run.artifacts.llm_transcript_path or (Path(run.artifacts.run_state_path).parent / "llm.jsonl"))
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "ts": str(event.get("ts") or datetime.now(UTC).isoformat()),
+        "ts": str(event.get("ts") or datetime.now(timezone.utc).isoformat()),
         **event,
     }
     with target.open("a", encoding="utf-8") as handle:

@@ -1,0 +1,15 @@
+{
+  "branch_intents": [
+    {
+      "branch_id": "primary",
+      "intent_id": "intent-1",
+      "description": "map feature hydration context",
+      "source_kind": "text",
+      "source_value": "map feature hydration context",
+      "priority": null,
+      "scope": ""
+    }
+  ],
+  "pipeline_version": "1",
+  "schema": "tonic-branch-intents"
+}

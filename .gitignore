@@ -1,4 +1,4 @@
-**/_tmp_*/
+# **/_tmp_*/
 # Node / JS deps
 node_modules/
 **/node_modules/
@@ -36,6 +36,7 @@ logs
 .cursor
 .tonic/chroma_db/
 .tonic/hydration-runs/
+tests/_tmp_*/
 merge-tonic-lib/tests/_tmp_chroma_client/
 merge-tonic-lib/tests/_tmp_cli/
 merge-tonic-lib/tests/_tmp_indexer/

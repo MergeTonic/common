@@ -1,0 +1,12 @@
+{
+  "persist_root": "C:\\Users\\MeMyself\\mergetonic\\merge-tonic-lib\\merge-tonic-lib\\tests\\_tmp_cli\\hydrate_runtime_local\\.tonic\\chroma_db",
+  "index_state_file": "index-state.json",
+  "writer_kind": "memory",
+  "entries": [
+    "index-state.json"
+  ],
+  "schema": "tonic-hydration-persist-manifest",
+  "pipeline_version": "1",
+  "cache_key": "fedfadb1ad6297b8d78fbbf366722112385c27b34c1107d8708d9873bdb49851",
+  "updated_at": "2026-03-29T15:57:09.838082+00:00"
+}

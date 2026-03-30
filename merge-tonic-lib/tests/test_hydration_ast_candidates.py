@@ -1,29 +1,29 @@
-from tonic.hydration import build_hydration_ast_candidates
+from tonic.hydration import CodeSearchRecord, build_hydration_ast_candidates
 
 
 def test_build_hydration_ast_candidates_promotes_declaration_metadata():
     candidates = build_hydration_ast_candidates(
         [
-            {
-                "code": "export class AuthService {\n  resolve() {}\n}\n",
-                "file_path": "src/auth.ts",
-                "chunk_id": "chunk-auth",
-                "source": "hybrid",
-                "score": 0.82,
-                "symbol": "AuthService",
-                "start_line": 1,
-                "end_line": 3,
-            },
-            {
-                "code": "export function resolve_auth() {\n  return True\n}\n",
-                "file_path": "src/auth.py",
-                "chunk_id": "chunk-resolve",
-                "source": "symbol",
-                "score": 0.91,
-                "symbol": "resolve_auth",
-                "start_line": 5,
-                "end_line": 7,
-            },
+            CodeSearchRecord(
+                code="export class AuthService {\n  resolve() {}\n}\n",
+                file_path="src/auth.ts",
+                chunk_id="chunk-auth",
+                source="hybrid",
+                score=0.82,
+                symbol="AuthService",
+                start_line=1,
+                end_line=3,
+            ),
+            CodeSearchRecord(
+                code="export function resolve_auth() {\n  return True\n}\n",
+                file_path="src/auth.py",
+                chunk_id="chunk-resolve",
+                source="symbol",
+                score=0.91,
+                symbol="resolve_auth",
+                start_line=5,
+                end_line=7,
+            ),
         ]
     )
 

@@ -93,7 +93,8 @@ def test_hydrate_git_merge_reads_unmerged(monkeypatch):
 
     monkeypatch.setattr("tonic_agent.hydrate_git_merge._run_git", fake_run)
     monkeypatch.setattr("tonic_agent.hydrate_git_merge.Path", lambda *_: DummyPath("x"))
-    out = hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
+    with patch.dict("os.environ", {"GITHUB_ACTIONS": "false"}, clear=False):
+        out = hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
     assert "a.txt" in out
     assert out["a.txt"]["status"] == "unmerged"
     assert out["a.txt"]["annotated_lines"][0].startswith("<<<<<<< begin git merge")
@@ -128,5 +129,6 @@ def test_hydrate_git_merge_allows_clean_merge(monkeypatch):
         return ""
 
     monkeypatch.setattr("tonic_agent.hydrate_git_merge._run_git", fake_run)
-    out = hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
+    with patch.dict("os.environ", {"GITHUB_ACTIONS": "false"}, clear=False):
+        out = hydrate_git_merge(workspace="w", base_sha="b", head_sha="h", max_files=10)
     assert out == {}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -71,7 +71,7 @@ def create_hydration_index_state(
         historical_base_ref=historical_base_ref,
         historical_state=historical_state,
         normative_commit=normative_commit,
-        updated_at=datetime.now(UTC).isoformat(),
+        updated_at=datetime.now(timezone.utc).isoformat(),
         indexed_files={},
     )
 
