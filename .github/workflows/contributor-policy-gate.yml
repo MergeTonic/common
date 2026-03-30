@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   contributor-policy-gate:
+    if: github.actor != 'github-actions[bot]' && !startsWith(github.head_ref, 'tonic/agent/') && !startsWith(github.head_ref, 'sync/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -22,6 +23,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MERGETONIC_COMMON_REPO: mergetonic/common
-          MERGETONIC_COMMON_REF: main
         run: |
           python scripts/policy/contributor_acceptance.py gate

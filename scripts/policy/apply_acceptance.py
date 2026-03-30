@@ -39,6 +39,12 @@ def _api(method: str, url: str, token: str, payload: dict[str, Any] | None = Non
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _repo_default_branch(repo: str, token: str) -> str:
+    url = f"https://api.github.com/repos/{repo}"
+    obj = _api("GET", url, token)
+    return str(obj.get("default_branch", "")).strip()
+
+
 def _append_output(key: str, value: str) -> None:
     out = os.getenv("GITHUB_OUTPUT")
     if not out:
@@ -155,7 +161,10 @@ def run_apply(args: argparse.Namespace) -> int:
         tmp = Path(td)
         checkout = tmp / "repo"
         _run(["git", "clone", f"https://x-access-token:{token}@github.com/{common_repo}.git", str(checkout)])
-        _run(["git", "checkout", args.common_ref], cwd=checkout)
+        common_ref = (args.common_ref or "").strip()
+        if not common_ref:
+            common_ref = _repo_default_branch(common_repo, token)
+        _run(["git", "checkout", common_ref], cwd=checkout)
         registry_path = checkout / ".github" / "contributor-acceptance.json"
         changed = _upsert_acceptance_file(
             registry_path=registry_path,
@@ -225,7 +234,7 @@ def main() -> int:
     parser.add_argument("--event-path", default="")
     parser.add_argument("--token", default="")
     parser.add_argument("--common-repo", default=os.getenv("MERGETONIC_COMMON_REPO", "mergetonic/common"))
-    parser.add_argument("--common-ref", default=os.getenv("MERGETONIC_COMMON_REF", "main"))
+    parser.add_argument("--common-ref", default=os.getenv("MERGETONIC_COMMON_REF", ""))
     parser.add_argument("--policy-version", default=os.getenv("MERGETONIC_POLICY_VERSION", "2026-03-27.1"))
     args = parser.parse_args()
     try:

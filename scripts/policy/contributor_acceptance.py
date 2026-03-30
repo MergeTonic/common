@@ -88,12 +88,41 @@ def _collect_pr_contributors(repo: str, pr_number: int, token: str) -> list[str]
     return sorted(users)
 
 
-def _load_canonical_registry(common_repo: str, common_ref: str, token: str) -> dict[str, Any]:
+def _load_canonical_registry(common_repo: str, common_ref: str, token: str) -> tuple[dict[str, Any], str]:
+    def _repo_default_branch(repo: str) -> str:
+        url = f"https://api.github.com/repos/{repo}"
+        obj = _api_request("GET", url, token)
+        default_branch = str(obj.get("default_branch", "")).strip()
+        return default_branch
+
+    refs_to_try: list[str] = []
+    preferred_ref = common_ref.strip()
+    if preferred_ref:
+        refs_to_try.append(preferred_ref)
+    try:
+        default_branch = _repo_default_branch(common_repo)
+    except urllib.error.HTTPError:
+        default_branch = ""
+    if default_branch and default_branch not in refs_to_try:
+        refs_to_try.append(default_branch)
+
     path = urllib.parse.quote(".github/contributor-acceptance.json", safe="")
-    url = f"https://api.github.com/repos/{common_repo}/contents/{path}?ref={urllib.parse.quote(common_ref)}"
-    obj = _api_request("GET", url, token)
-    content = base64.b64decode(obj["content"]).decode("utf-8")
-    return json.loads(content)
+    last_http_error: urllib.error.HTTPError | None = None
+    for ref in refs_to_try:
+        url = f"https://api.github.com/repos/{common_repo}/contents/{path}?ref={urllib.parse.quote(ref)}"
+        try:
+            obj = _api_request("GET", url, token)
+        except urllib.error.HTTPError as err:
+            last_http_error = err
+            if err.code == 404:
+                continue
+            raise
+        content = base64.b64decode(obj["content"]).decode("utf-8")
+        return json.loads(content), ref
+
+    if last_http_error is not None:
+        raise last_http_error
+    raise RuntimeError("Unable to load canonical contributor registry")
 
 
 def _accepted_logins(registry: dict[str, Any]) -> set[str]:
@@ -112,10 +141,11 @@ def _accepted_logins(registry: dict[str, Any]) -> set[str]:
 def _build_comment_body(
     missing: list[str],
     common_repo: str,
+    common_ref: str,
     policy_version: str,
 ) -> str:
     missing_lines = "\n".join(f"- `{m}`" for m in missing) if missing else "- none"
-    terms_base = f"https://github.com/{common_repo}/blob/main/.github"
+    terms_base = f"https://github.com/{common_repo}/blob/{common_ref}/.github"
     return f"""{COMMENT_MARKER}
 ## Contribution and License Acceptance Required
 
@@ -194,7 +224,7 @@ def run_gate(args: argparse.Namespace) -> int:
     common_ref = args.common_ref
     try:
         contributors = _collect_pr_contributors(repo, pr_number, token)
-        registry = _load_canonical_registry(common_repo, common_ref, token)
+        registry, registry_ref = _load_canonical_registry(common_repo, common_ref, token)
     except urllib.error.HTTPError as err:
         print(f"GitHub API error: {err}", file=sys.stderr)
         return 2
@@ -205,7 +235,17 @@ def run_gate(args: argparse.Namespace) -> int:
     _write_outputs(status, contributors, missing)
     if missing:
         try:
-            _upsert_pr_comment(repo, pr_number, token, _build_comment_body(missing, common_repo, registry.get("policy_version", "")))
+            _upsert_pr_comment(
+                repo,
+                pr_number,
+                token,
+                _build_comment_body(
+                    missing,
+                    common_repo,
+                    registry_ref,
+                    registry.get("policy_version", ""),
+                ),
+            )
         except urllib.error.HTTPError as err:
             # Lack of comment permissions should not hide a hard policy failure.
             print(f"warning: failed to upsert comment: {err}", file=sys.stderr)
@@ -220,7 +260,7 @@ def main() -> int:
     gate.add_argument("--event-path", default="")
     gate.add_argument("--repo", default="")
     gate.add_argument("--common-repo", default=os.getenv("MERGETONIC_COMMON_REPO", "mergetonic/common"))
-    gate.add_argument("--common-ref", default=os.getenv("MERGETONIC_COMMON_REF", "main"))
+    gate.add_argument("--common-ref", default=os.getenv("MERGETONIC_COMMON_REF", ""))
     args = parser.parse_args()
     if args.cmd == "gate":
         return run_gate(args)

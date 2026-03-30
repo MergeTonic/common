@@ -9,6 +9,34 @@ import { loadImmutableTargets, writeActionOutputs } from "../index";
 import { hydrateGitMerge } from "../hydrateGitMerge";
 import { execFileSync } from "node:child_process";
 
+function withPatchedEnv(
+  patch: Record<string, string | undefined>,
+  fn: () => void,
+): void {
+  const prev: Record<string, string | undefined> = {};
+  for (const key of Object.keys(patch)) {
+    prev[key] = process.env[key];
+    const next = patch[key];
+    if (next === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = next;
+    }
+  }
+  try {
+    fn();
+  } finally {
+    for (const key of Object.keys(patch)) {
+      const old = prev[key];
+      if (old === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = old;
+      }
+    }
+  }
+}
+
 test("mergeSnapshots + conflict file", () => {
   const [merged, ann] = mergeSnapshots(["A"], ["A", "B"]);
   assert.ok(merged.includes("B"));
@@ -64,10 +92,12 @@ test("hydrateGitMerge returns unmerged conflict file", () => {
     run(["commit", "-am", "base-change"]);
     const base = run(["rev-parse", "HEAD"]).trim();
 
-    const out = hydrateGitMerge({ workspace: dir, baseSha: base, headSha: head, maxFiles: 20 });
-    assert.ok(out["a.txt"]);
-    assert.equal(out["a.txt"]?.status, "unmerged");
-    assert.ok((out["a.txt"]?.gitAnnotatedLines ?? []).some((l) => l.startsWith("<<<<<<< begin git merge")));
+    withPatchedEnv({ GITHUB_ACTIONS: "false" }, () => {
+      const out = hydrateGitMerge({ workspace: dir, baseSha: base, headSha: head, maxFiles: 20 });
+      assert.ok(out["a.txt"]);
+      assert.equal(out["a.txt"]?.status, "unmerged");
+      assert.ok((out["a.txt"]?.gitAnnotatedLines ?? []).some((l) => l.startsWith("<<<<<<< begin git merge")));
+    });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -106,8 +136,10 @@ test("hydrateGitMerge returns empty object on clean merge", () => {
     run(["commit", "-m", "feature"]);
     const head = run(["rev-parse", "HEAD"]).trim();
     run(["checkout", "-b", "base-branch", base]);
-    const out = hydrateGitMerge({ workspace: dir, baseSha: base, headSha: head, maxFiles: 20 });
-    assert.deepEqual(out, {});
+    withPatchedEnv({ GITHUB_ACTIONS: "false" }, () => {
+      const out = hydrateGitMerge({ workspace: dir, baseSha: base, headSha: head, maxFiles: 20 });
+      assert.deepEqual(out, {});
+    });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -135,9 +167,11 @@ test("hydrateGitMerge maxFiles applies to accepted conflicts only", () => {
     fs.writeFileSync(path.join(dir, "z.txt"), "base\n", "utf8");
     run(["commit", "-am", "base"]);
     const base = run(["rev-parse", "HEAD"]).trim();
-    const out = hydrateGitMerge({ workspace: dir, baseSha: base, headSha: head, maxFiles: 1 });
-    assert.equal(Object.keys(out).length, 1);
-    assert.ok(out["z.txt"]);
+    withPatchedEnv({ GITHUB_ACTIONS: "false" }, () => {
+      const out = hydrateGitMerge({ workspace: dir, baseSha: base, headSha: head, maxFiles: 1 });
+      assert.equal(Object.keys(out).length, 1);
+      assert.ok(out["z.txt"]);
+    });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
