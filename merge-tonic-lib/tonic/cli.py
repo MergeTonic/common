@@ -212,6 +212,7 @@ def cmd_git(args: argparse.Namespace) -> int:
     from tonic.git_cli import (
         cmd_git_compare,
         cmd_git_fetch,
+        cmd_git_hydrate_intents,
         cmd_git_materialize,
         cmd_git_merge,
         cmd_git_worktree,
@@ -250,6 +251,27 @@ def cmd_git(args: argparse.Namespace) -> int:
             backup=args.backup,
             atomic=not args.no_atomic,
             blame=args.blame,
+        )
+    if args.git_cmd == "hydrate-intents":
+        return cmd_git_hydrate_intents(
+            repo,
+            check_optional_ai=args.check_optional_ai,
+            out_json=args.out_json,
+            non_interactive=args.non_interactive,
+            vendoring_scaffold=args.vendoring_scaffold,
+            intent_text=args.intent_text,
+            intent_spec=args.intent_spec,
+            scope=args.scope,
+            dry_run=args.dry_run,
+            prompt_profile=args.prompt_profile,
+            log_llm=args.log_llm,
+            historical_max_prs=args.historical_max_prs,
+            historical_since=args.historical_since,
+            historical_base_ref=args.historical_base_ref,
+            historical_state=args.historical_state,
+            max_questions=args.max_questions,
+            query_top_k=args.query_top_k,
+            downstream_task=args.downstream_task,
         )
     if args.git_cmd == "merge":
         return cmd_git_merge(repo, args.merge_ref, no_commit=args.no_commit)
@@ -319,7 +341,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p_apply.add_argument("--report", "-t", default="", help="Write merge-tonic-apply-report JSON")
     p_apply.set_defaults(func=cmd_apply)
 
-    p_conf = sub.add_parser("conflicts", help="Parse Tonic markers in a file → JSON")
+    p_conf = sub.add_parser("conflicts", help="Parse Tonic markers in a file -> JSON")
     p_conf.add_argument("conflict_file", nargs="?", help="Positional shorthand for --file")
     p_conf.add_argument("--file", "-f", default="", help="Path or - for stdin")
     p_conf.set_defaults(func=cmd_conflicts)
@@ -346,7 +368,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
     p_git = sub.add_parser(
         "git",
-        help="Git repo helpers (fetch, compare, materialize/from-index, merge, worktree)",
+        help="Git repo helpers (fetch, compare, materialize/from-index, hydrate-intents, merge, worktree)",
     )
     p_git.add_argument("--repo", "-R", default=".", help="Path to git repository")
     gsub = p_git.add_subparsers(dest="git_cmd", required=True)
@@ -374,7 +396,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     g_cmp.add_argument("--blame-max-commits", type=int, default=3, dest="blame_max_commits")
     g_cmp.set_defaults(func=cmd_git)
 
-    g_mat = gsub.add_parser("materialize", help="Unmerged index → Tonic markers")
+    g_mat = gsub.add_parser("materialize", help="Unmerged index -> Tonic markers")
     g_mat.add_argument("--dry-run", "-d", action="store_true")
     g_mat.add_argument("--write", "-w", action="store_true")
     g_mat.add_argument("--strategy", "-S", default="ours-theirs")
@@ -395,6 +417,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     g_fi.add_argument("--no-atomic", "-N", action="store_true", dest="no_atomic")
     g_fi.add_argument("--blame", action="store_true")
     g_fi.set_defaults(func=cmd_git)
+
+    g_hi = gsub.add_parser("hydrate-intents", help="Vendored hydration substrate runner (deterministic index + retrieval)")
+    g_hi.add_argument("--check-optional-ai", action="store_true", dest="check_optional_ai")
+    g_hi.add_argument("--out-json", default="", dest="out_json")
+    g_hi.add_argument("--non-interactive", action="store_true", dest="non_interactive")
+    g_hi.add_argument("--vendoring-scaffold", action="store_true", dest="vendoring_scaffold")
+    g_hi.add_argument("--intent-text", default="", dest="intent_text")
+    g_hi.add_argument("--intent-spec", default="", dest="intent_spec")
+    g_hi.add_argument("--scope", default="", dest="scope")
+    g_hi.add_argument("--dry-run", action="store_true", dest="dry_run")
+    g_hi.add_argument("--prompt-profile", default="", dest="prompt_profile")
+    g_hi.add_argument("--log-llm", default="", dest="log_llm")
+    g_hi.add_argument("--historical-max-prs", type=int, default=0, dest="historical_max_prs")
+    g_hi.add_argument("--historical-since", default="", dest="historical_since")
+    g_hi.add_argument("--historical-base-ref", default="", dest="historical_base_ref")
+    g_hi.add_argument("--historical-state", default="merged", choices=["merged", "open", "all"], dest="historical_state")
+    g_hi.add_argument("--max-questions", type=int, default=3, dest="max_questions")
+    g_hi.add_argument("--query-top-k", type=int, default=5, dest="query_top_k")
+    g_hi.add_argument("--downstream-task", default="", dest="downstream_task")
+    g_hi.set_defaults(func=cmd_git)
 
     g_merge = gsub.add_parser("merge", help="git merge --no-ff [--no-commit] <ref>")
     g_merge.add_argument("merge_ref_pos", nargs="?", help="Positional shorthand for --ref")

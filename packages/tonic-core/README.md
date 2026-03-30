@@ -16,6 +16,16 @@ TypeScript implementation of the Tonic CRDT weave merge engine (parity-tested ag
 - Shorthand support: top-level aliases (`m`,`a`,`c`,`r`,`g`), git aliases (`f`,`mat`,`fi`,`m`,`wt`), common short flags, and positional marker-optional forms like `merge-tonic r left.txt right.txt` and `merge-tonic a conflicted.txt`
 - Repo-oriented commands and safety flags: [docs/cli-repo-commands.md](../../docs/cli-repo-commands.md)
 
+## Hydration optional AI contract
+
+- Optional dependency group name: `ai` (cross-runtime contract).
+- Pinned npm package for Chroma-backed hydration paths: `chromadb@0.5.23`.
+- Missing optional AI dependencies should use skip semantics (`hydration_skipped=true`, `skip_reason=missing_optional_ai_dependencies`, exit code `5` for machine callers).
+- Current TS runtime support: `TONIC_CHROMA_MODE=http` (Chroma HTTP) and `TONIC_CHROMA_MODE=memory`.
+- Probe contract command: `merge-tonic git hydrate-intents --check-optional-ai --out-json <path>`.
+
+See [docs/hydration-chroma-runtime.md](../../docs/hydration-chroma-runtime.md).
+
 ## Usage
 
 ```typescript

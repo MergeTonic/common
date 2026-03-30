@@ -77,10 +77,14 @@ def _annotated_region_snippet(annotated: list[str], reg: ConflictRegion) -> str:
     return "\n".join(annotated[sl:el])
 
 
-def _resolved_lines_for_region(cf, reg, provider):
+def _resolved_lines_for_region(cf, reg, provider, expected_resolved_line_count: int | None = None):
     if provider:
         try:
-            resp = provider.resolve_conflict(cf, reg)
+            resp = provider.resolve_conflict(
+                cf,
+                reg,
+                expected_resolved_line_count=expected_resolved_line_count,
+            )
             lines, rat = parse_resolved_lines_from_ai(resp.content)
             if lines:
                 return lines, rat, True
@@ -244,7 +248,8 @@ def _orchestrate_run_pr(
 ) -> tuple[int, str]:
     branch_name = _run_git(workspace, ["branch", "--show-current"]).strip()
     if not branch_name:
-        raise RuntimeError("isolated branch name is empty")
+        branch_name = f"tonic/agent/{run_id}-{base_sha[:7]}"
+        _run_git(workspace, ["checkout", "-B", branch_name, base_sha], allow_fail=False)
     payload_dir = Path(workspace) / ".tonic-agent" / "runs"
     payload_dir.mkdir(parents=True, exist_ok=True)
     payload_path = payload_dir / f"{run_id}.json"
@@ -600,7 +605,10 @@ def main() -> None:
                     )
 
                 resolved, rat, used_ai = _resolved_lines_for_region(
-                    cf, reg, inline_provider if not is_orphan else None
+                    cf,
+                    reg,
+                    inline_provider if not is_orphan else None,
+                    len(old_lines) if not is_orphan else None,
                 )
                 if not is_orphan and not suggestion_line_count_ok(
                     resolved, len(old_lines)

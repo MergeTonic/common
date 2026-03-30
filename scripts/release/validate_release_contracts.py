@@ -33,15 +33,33 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _resolve_canonical_prompt_bundle() -> Path:
+    package_canonical = (
+        Path("packages/tonic-core/src/hydration/prompts/conflictPrompts.v1.json")
+    )
+    legacy_canonical = Path("agents/shared-tonic-ai-prompts/prompts.v1.json")
+    if package_canonical.is_file():
+        return package_canonical
+    if legacy_canonical.is_file():
+        return legacy_canonical
+    return package_canonical
+
+
 def _validate_ai_prompt_bundle_copies(failures: list[str]) -> None:
-    canonical = Path("agents/shared-tonic-ai-prompts/prompts.v1.json")
+    canonical = _resolve_canonical_prompt_bundle()
+    legacy_copy = Path("agents/shared-tonic-ai-prompts/prompts.v1.json")
     node_copy = Path("agents/github-action-agent-node/src/data/aiPrompts.v1.json")
     py_copy = Path("agents/github-action-agent/src/tonic_agent/data/ai_prompts.v1.json")
     if not canonical.is_file():
-        failures.append("missing agents/shared-tonic-ai-prompts/prompts.v1.json")
+        failures.append(
+            "missing conflict prompt canonical: "
+            "packages/tonic-core/src/hydration/prompts/conflictPrompts.v1.json "
+            "(or fallback agents/shared-tonic-ai-prompts/prompts.v1.json)"
+        )
         return
     want = _sha256_file(canonical)
     for label, p in (
+        ("legacy shared prompts.v1.json", legacy_copy),
         ("node agent aiPrompts.v1.json", node_copy),
         ("python agent ai_prompts.v1.json", py_copy),
     ):
@@ -54,6 +72,55 @@ def _validate_ai_prompt_bundle_copies(failures: list[str]) -> None:
                 f"AI prompt bundle drift: {label} does not match canonical "
                 f"(run: python scripts/sync_agent_ai_prompts.py)"
             )
+
+
+def _validate_hydration_chroma_pins(failures: list[str]) -> None:
+    pins_path = Path("docs/hydration-chroma-version-pins.json")
+    if not pins_path.is_file():
+        failures.append(f"missing hydration chroma pins doc: {pins_path}")
+        return
+    pins = json.loads(pins_path.read_text(encoding="utf-8"))
+    required_keys = {
+        "server_image",
+        "python_chromadb",
+        "npm_chromadb",
+        "heartbeat_path",
+        "optional_dependency_group",
+    }
+    missing = sorted(required_keys - set(pins.keys()))
+    if missing:
+        failures.append(f"hydration chroma pins missing keys: {', '.join(missing)}")
+        return
+
+    pyproject = _read_toml("merge-tonic-lib/pyproject.toml")
+    ai_deps = pyproject.get("project", {}).get("optional-dependencies", {}).get("ai", [])
+    expected_py_pin = f"chromadb=={pins['python_chromadb']}"
+    if expected_py_pin not in ai_deps:
+        failures.append(
+            "merge-tonic-lib optional dependency pin mismatch: "
+            f"expected ai to include '{expected_py_pin}'"
+        )
+
+    core_readme = Path("packages/tonic-core/README.md").read_text(encoding="utf-8")
+    if f"chromadb@{pins['npm_chromadb']}" not in core_readme:
+        failures.append(
+            "packages/tonic-core/README.md must document pinned npm chromadb install "
+            f"version chromadb@{pins['npm_chromadb']}"
+        )
+
+    hydration_workflow = Path(".github/workflows/action-hydration-smoke.yml").read_text(
+        encoding="utf-8"
+    )
+    if str(pins["server_image"]) not in hydration_workflow:
+        failures.append(
+            "action-hydration-smoke.yml must include pinned Chroma server image "
+            f"{pins['server_image']}"
+        )
+    if str(pins["heartbeat_path"]) not in hydration_workflow:
+        failures.append(
+            "action-hydration-smoke.yml must include pinned heartbeat path "
+            f"{pins['heartbeat_path']}"
+        )
 
 
 def main() -> int:
@@ -78,6 +145,7 @@ def main() -> int:
         failures.append("node action dependency @mergetonic/core must track ts cli/core version")
 
     _validate_ai_prompt_bundle_copies(failures)
+    _validate_hydration_chroma_pins(failures)
 
     release_targets = _read_release_targets()
     allowed_version_keys = {"ts_cli", "js_action", "vsmt", "py_cli", "py_action"}

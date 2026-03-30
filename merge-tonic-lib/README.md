@@ -8,6 +8,14 @@ Shorthand support is available in both Python and TypeScript CLIs: top-level ali
 
 Blame metadata is optional in report-oriented flows: `merge-tonic report --blame --left-commit-id <sha> --right-commit-id <sha>` (and `git compare --blame`) emits conflict-region `left_commit_ids` / `right_commit_ids` in `merge-tonic-report` JSON.
 
+## Hydration optional AI contract
+
+- Optional dependency group name: `ai`.
+- Pinned Python package: `chromadb==0.5.23`.
+- Missing optional AI dependencies should use skip semantics (`hydration_skipped=true`, `skip_reason=missing_optional_ai_dependencies`, exit code `5` for machine callers).
+
+See [docs/hydration-chroma-runtime.md](../docs/hydration-chroma-runtime.md).
+
 A fundamentally sound basis for a version control system. Built on CRDTs, it provides eventual consistency — merges never fail and always converge to the same result — with conflict presentations which are much more informative and helpful than the norm.
 
 ## Why CRDTs for Version Control

@@ -1,0 +1,16 @@
+{
+  "collection_name": "hydrate_runtime_local-hydration",
+  "vector_backend": "memory",
+  "embedder_model": "deterministic-fake-v1",
+  "chunker_version": "line-estimate-v1",
+  "strategy_id": "incremental-content-hash",
+  "repo_root": "C:\\Users\\MeMyself\\mergetonic\\merge-tonic-lib\\merge-tonic-lib\\tests\\_tmp_cli\\hydrate_runtime_local",
+  "schema": "tonic-hydration-index-state",
+  "pipeline_version": "1",
+  "compatibility_version": "1",
+  "cache_key": "fedfadb1ad6297b8d78fbbf366722112385c27b34c1107d8708d9873bdb49851",
+  "pr_scope_hash": "",
+  "normative_commit": "",
+  "updated_at": "2026-03-29T15:57:09.836533+00:00",
+  "indexed_files": {}
+}

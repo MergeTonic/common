@@ -1,14 +1,6 @@
 name: CI Agent
 
 on:
-  push:
-    paths:
-      - "agents/github-action-agent/**"
-      - "agents/shared-tonic-ai-prompts/**"
-      - "scripts/sync_agent_ai_prompts.py"
-      - "merge-tonic-lib/**"
-      - "packages/tonic-core/**"
-      - ".github/workflows/ci-agent.yml"
   pull_request:
     paths:
       - "agents/github-action-agent/**"

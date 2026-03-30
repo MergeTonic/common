@@ -1,0 +1,546 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-intent-hydration.schema.json",
+  "title": "TonicIntentHydration",
+  "type": "object",
+  "required": [
+    "schema",
+    "pipeline_version",
+    "run_id",
+    "repo_root",
+    "persist_root",
+    "run_root",
+    "vector_backend",
+    "hydration_skipped",
+    "tags_added"
+  ],
+  "properties": {
+    "schema": { "const": "tonic-intent-hydration" },
+    "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "repo_root": { "type": "string", "minLength": 1 },
+    "persist_root": { "type": "string", "minLength": 1 },
+    "run_root": { "type": "string", "minLength": 1 },
+    "vector_backend": {
+      "type": "string",
+      "enum": ["chroma-http", "chroma-persistent", "ephemeral", "memory"]
+    },
+    "hydration_skipped": { "type": "boolean" },
+    "skip_reason": {
+      "type": "string",
+      "enum": [
+        "disabled",
+        "missing_optional_ai_dependencies",
+        "missing_configuration",
+        "unsupported_runtime",
+        "not_implemented"
+      ]
+    },
+    "rationale": { "type": "string" },
+    "tags_added": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/intentTag" }
+    },
+    "question_slots": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/questionSlot" }
+    },
+    "branch_intents": {
+      "$ref": "#/$defs/branchIntentCollection"
+    },
+    "question_plan": {
+      "$ref": "#/$defs/questionPlan"
+    },
+    "hydration_cycle": {
+      "$ref": "#/$defs/hydrationCycle"
+    },
+    "retrieval_bundles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/retrievalBundle" }
+    },
+    "retrieval_merge": {
+      "$ref": "#/$defs/retrievalMerge"
+    },
+    "metadata_consolidation": {
+      "$ref": "#/$defs/metadataConsolidation"
+    },
+    "fuzzy_alignment": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fuzzyAlignment" }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "integer", "boolean", "null"]
+      }
+    },
+    "intent_spec": {
+      "$ref": "#/$defs/IntentSpecFile"
+    },
+    "pipeline_run": {
+      "$ref": "#/$defs/PipelineRun"
+    },
+    "hydration_result": {
+      "$ref": "#/$defs/HydrationResult"
+    }
+  },
+  "$defs": {
+    "intentTag": {
+      "type": "object",
+      "required": ["key", "value"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "display": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "questionSlot": {
+      "type": "object",
+      "required": ["id", "question", "strategy"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "question": { "type": "string", "minLength": 1 },
+        "strategy": {
+          "type": "string",
+          "enum": ["guided-llm-meta", "template"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "branchIntent": {
+      "type": "object",
+      "required": [
+        "branch_id",
+        "intent_id",
+        "description",
+        "source_kind",
+        "source_value"
+      ],
+      "properties": {
+        "branch_id": { "type": "string", "minLength": 1 },
+        "intent_id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "source_kind": { "type": "string", "enum": ["text", "file"] },
+        "source_value": { "type": "string", "minLength": 1 },
+        "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+        "scope": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "branchIntentCollection": {
+      "type": "object",
+      "required": ["schema", "pipeline_version", "branch_intents"],
+      "properties": {
+        "schema": { "const": "tonic-branch-intents" },
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "branch_intents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/branchIntent" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "questionPlan": {
+      "type": "object",
+      "required": [
+        "schema",
+        "pipeline_version",
+        "downstream_task",
+        "max_questions",
+        "branch_intent_count",
+        "question_slots"
+      ],
+      "properties": {
+        "schema": { "const": "tonic-hydration-question-plan" },
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "downstream_task": { "type": "string", "minLength": 1 },
+        "max_questions": { "type": "integer", "minimum": 1 },
+        "branch_intent_count": { "type": "integer", "minimum": 0 },
+        "question_slots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/questionSlot" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "retrievalHit": {
+      "type": "object",
+      "required": ["path", "chunk_id", "score", "content"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "chunk_id": { "type": "string", "minLength": 1 },
+        "score": { "type": "number" },
+        "content": { "type": "string" },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "symbol": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "astNode": {
+      "type": "object",
+      "required": ["ast_node_id", "path", "score"],
+      "properties": {
+        "ast_node_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "score": { "type": "number" },
+        "rule_id": { "type": "string" },
+        "node_kind": {
+          "type": "string",
+          "enum": ["module", "class", "function", "method", "span"]
+        },
+        "symbol": { "type": "string" },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "retrievalBundle": {
+      "type": "object",
+      "required": ["slot_id", "question", "vector_hits", "ast_candidates"],
+      "properties": {
+        "slot_id": { "type": "string", "minLength": 1 },
+        "question": { "type": "string", "minLength": 1 },
+        "vector_hits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/retrievalHit" }
+        },
+        "ast_candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/astNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "fuzzyAlignment": {
+      "type": "object",
+      "required": ["ast_node_id", "path", "score"],
+      "properties": {
+        "ast_node_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "score": { "type": "number" },
+        "overlap_score": { "type": "number" },
+        "token_score": { "type": "number" },
+        "path_distance_score": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "hydrationCycleNode": {
+      "type": "object",
+      "required": ["node_id", "level", "label", "source_slot_ids", "status"],
+      "properties": {
+        "node_id": { "type": "string", "minLength": 1 },
+        "level": {
+          "type": "string",
+          "enum": ["branch", "dependency", "module", "class", "function", "method", "span"]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "symbol": { "type": "string" },
+        "source_slot_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "status": { "type": "string", "enum": ["planned", "hydrated", "skipped"] }
+      },
+      "additionalProperties": false
+    },
+    "hydrationCycleTarget": {
+      "type": "object",
+      "required": ["target_id", "level", "label", "source_node_ids"],
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "level": {
+          "type": "string",
+          "enum": ["branch", "dependency", "module", "class", "function", "method", "span"]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "symbol": { "type": "string" },
+        "source_node_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    },
+    "hydrationCycleRecord": {
+      "type": "object",
+      "required": [
+        "cycle_number",
+        "targets",
+        "question_slots",
+        "retrieval_bundles",
+        "retrieval_merge",
+        "fuzzy_alignment",
+        "nodes_added"
+      ],
+      "properties": {
+        "cycle_number": { "type": "integer", "minimum": 1 },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hydrationCycleTarget" }
+        },
+        "question_slots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/questionSlot" }
+        },
+        "retrieval_bundles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/retrievalBundle" }
+        },
+        "retrieval_merge": { "$ref": "#/$defs/retrievalMerge" },
+        "fuzzy_alignment": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fuzzyAlignment" }
+        },
+        "nodes_added": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hydrationCycleNode" }
+        },
+        "stop_reason": {
+          "type": "string",
+          "enum": ["no_new_targets", "no_new_evidence", "max_cycles", "max_total_questions", "max_total_chunks"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "hydrationCycle": {
+      "type": "object",
+      "required": ["schema", "pipeline_version", "total_cycles", "stop_reason", "nodes", "cycles"],
+      "properties": {
+        "schema": { "const": "tonic-hydration-cycle" },
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "total_cycles": { "type": "integer", "minimum": 0 },
+        "stop_reason": {
+          "type": "string",
+          "enum": ["no_new_targets", "no_new_evidence", "max_cycles", "max_total_questions", "max_total_chunks"]
+        },
+        "nodes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hydrationCycleNode" }
+        },
+        "cycles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hydrationCycleRecord" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "mergedEvidence": {
+      "type": "object",
+      "required": ["path", "slot_ids", "chunk_ids", "ast_node_ids"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "slot_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "chunk_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "ast_node_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "retrievalMerge": {
+      "type": "object",
+      "required": ["schema", "pipeline_version", "retrieval_bundles", "evidence_by_path"],
+      "properties": {
+        "schema": { "const": "tonic-hydration-retrieval-merge" },
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "retrieval_bundles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/retrievalBundle" }
+        },
+        "evidence_by_path": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mergedEvidence" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadataConsolidatedPath": {
+      "type": "object",
+      "required": ["path", "support", "slot_support", "chunk_support", "cycle_support", "novelty_score"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "support": { "type": "integer", "minimum": 0 },
+        "slot_support": { "type": "integer", "minimum": 0 },
+        "chunk_support": { "type": "integer", "minimum": 0 },
+        "cycle_support": { "type": "integer", "minimum": 0 },
+        "novelty_score": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "metadataConsolidatedSymbol": {
+      "type": "object",
+      "required": ["symbol", "path", "support", "avg_score"],
+      "properties": {
+        "symbol": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "support": { "type": "integer", "minimum": 0 },
+        "avg_score": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "metadataIntentSupport": {
+      "type": "object",
+      "required": ["intent_id", "description", "support_paths", "support_symbols", "support_score"],
+      "properties": {
+        "intent_id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "support_paths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "support_symbols": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "support_score": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "metadataCycleDelta": {
+      "type": "object",
+      "required": ["cycle_number", "new_paths", "repeated_paths", "new_symbols", "repeated_symbols", "novelty_ratio"],
+      "properties": {
+        "cycle_number": { "type": "integer", "minimum": 1 },
+        "new_paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "repeated_paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "new_symbols": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "repeated_symbols": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "novelty_ratio": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "metadataCandidateTag": {
+      "type": "object",
+      "required": ["key", "value", "support", "confidence"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "support": { "type": "number", "minimum": 0 },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+      },
+      "additionalProperties": false
+    },
+    "metadataConsolidation": {
+      "type": "object",
+      "required": ["schema", "pipeline_version", "paths_ranked", "symbols_ranked", "intent_support", "cycle_deltas", "candidate_tags"],
+      "properties": {
+        "schema": { "const": "tonic-hydration-metadata-consolidation" },
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "paths_ranked": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metadataConsolidatedPath" }
+        },
+        "symbols_ranked": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metadataConsolidatedSymbol" }
+        },
+        "intent_support": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metadataIntentSupport" }
+        },
+        "cycle_deltas": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metadataCycleDelta" }
+        },
+        "candidate_tags": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metadataCandidateTag" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Intent": {
+      "type": "object",
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "IntentSpecFile": {
+      "type": "object",
+      "required": ["schema", "intents"],
+      "properties": {
+        "schema": { "const": "tonic-intent-spec" },
+        "intents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Intent" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AstNode": {
+      "$ref": "#/$defs/astNode"
+    },
+    "QuestionSlot": {
+      "$ref": "#/$defs/questionSlot"
+    },
+    "RetrievalBundle": {
+      "$ref": "#/$defs/retrievalBundle"
+    },
+    "FuzzyAlignment": {
+      "$ref": "#/$defs/fuzzyAlignment"
+    },
+    "HydrationResult": {
+      "type": "object",
+      "required": ["pipeline_version", "tags_added"],
+      "properties": {
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "tags_added": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/intentTag" }
+        },
+        "rationale": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HydrationRunResult": {
+      "$ref": "#"
+    },
+    "PipelineRun": {
+      "type": "object",
+      "required": ["run_id", "pipeline_version", "stages", "artifacts", "run_status", "repo_root", "persist_root", "vector_backend"],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "repo_root": { "type": "string", "minLength": 1 },
+        "persist_root": { "type": "string", "minLength": 1 },
+        "vector_backend": {
+          "type": "string",
+          "enum": ["chroma-http", "chroma-persistent", "ephemeral", "memory"]
+        },
+        "run_status": {
+          "type": "string",
+          "enum": ["planned", "running", "completed", "skipped", "failed"]
+        },
+        "pipeline_version": { "type": "string", "pattern": "^1(\\.[0-9]+)?$" },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["stage_id", "status"],
+            "properties": {
+              "stage_id": { "type": "string", "minLength": 1 },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "running", "completed", "skipped", "failed"]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "artifacts": {
+          "$ref": "tonic-hydration-pipeline.v1.json#/properties/artifacts"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

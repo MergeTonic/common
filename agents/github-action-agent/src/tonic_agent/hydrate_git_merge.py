@@ -64,6 +64,17 @@ def _run_git(workspace: str, args: list[str], *, allow_fail: bool = False) -> st
     return output
 
 
+def _current_branch(workspace: str) -> str:
+    out = _run_git(
+        workspace,
+        ["symbolic-ref", "--quiet", "--short", "HEAD"],
+        allow_fail=True,
+    ).strip()
+    if not out or "fatal:" in out.lower():
+        return ""
+    return out.splitlines()[0].strip()
+
+
 def _parse_git_conflicts(lines: list[str]) -> list[tuple[list[str], list[str]]]:
     blocks: list[tuple[list[str], list[str]]] = []
     i = 0
@@ -118,38 +129,42 @@ def hydrate_git_merge(
         )
     if expected_iso is None and os.environ.get("GITHUB_ACTIONS") == "true":
         raise RuntimeError("hydrate_git_merge requires TONIC_AGENT_ISOLATED_WORKSPACE in GitHub Actions")
-    _run_git(workspace, ["checkout", "-f", base_sha])
-    merge_output = _run_git(workspace, ["merge", "--no-ff", "--no-commit", head_sha], allow_fail=True)
-    names_raw = _run_git(workspace, ["diff", "--name-only", "--diff-filter", "U"], allow_fail=True)
-    names = [n.strip() for n in names_raw.splitlines() if n.strip()]
-    if ("fatal:" in merge_output.lower() or "error:" in merge_output.lower()) and not names:
+    original_branch = _current_branch(workspace)
+    try:
+        _run_git(workspace, ["checkout", "-f", base_sha])
+        merge_output = _run_git(workspace, ["merge", "--no-ff", "--no-commit", head_sha], allow_fail=True)
+        names_raw = _run_git(workspace, ["diff", "--name-only", "--diff-filter", "U"], allow_fail=True)
+        names = [n.strip() for n in names_raw.splitlines() if n.strip()]
+        if ("fatal:" in merge_output.lower() or "error:" in merge_output.lower()) and not names:
+            raise RuntimeError(f"git merge failed without unmerged files: {merge_output.strip()}")
+        out: dict[str, dict[str, object]] = {}
+        for rel in names:
+            if len(out) >= max_files:
+                break
+            if not is_probably_text_path(rel):
+                continue
+            file_path = Path(workspace) / rel
+            if not file_path.exists():
+                continue
+            merged_lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            if not any(ln.startswith("<<<<<<< ") for ln in merged_lines):
+                continue
+            blocks = _parse_git_conflicts(merged_lines)
+            out[rel] = {
+                "left_lines": _read_stage_lines(workspace, "2", rel),
+                "right_lines": _read_stage_lines(workspace, "3", rel),
+                "status": "unmerged",
+                "annotated_lines": git_blocks_to_tonic_annotated(
+                    blocks,
+                    workspace=workspace,
+                    base_sha=base_sha,
+                    head_sha=head_sha,
+                    opts=git_merge_hydration,
+                ),
+                "merged_lines": merged_lines,
+            }
+        return out
+    finally:
         _run_git(workspace, ["merge", "--abort"], allow_fail=True)
-        raise RuntimeError(f"git merge failed without unmerged files: {merge_output.strip()}")
-    out: dict[str, dict[str, object]] = {}
-    for rel in names:
-        if len(out) >= max_files:
-            break
-        if not is_probably_text_path(rel):
-            continue
-        file_path = Path(workspace) / rel
-        if not file_path.exists():
-            continue
-        merged_lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
-        if not any(ln.startswith("<<<<<<< ") for ln in merged_lines):
-            continue
-        blocks = _parse_git_conflicts(merged_lines)
-        out[rel] = {
-            "left_lines": _read_stage_lines(workspace, "2", rel),
-            "right_lines": _read_stage_lines(workspace, "3", rel),
-            "status": "unmerged",
-            "annotated_lines": git_blocks_to_tonic_annotated(
-                blocks,
-                workspace=workspace,
-                base_sha=base_sha,
-                head_sha=head_sha,
-                opts=git_merge_hydration,
-            ),
-            "merged_lines": merged_lines,
-        }
-    _run_git(workspace, ["merge", "--abort"], allow_fail=True)
-    return out
+        if original_branch:
+            _run_git(workspace, ["checkout", "-f", original_branch], allow_fail=True)

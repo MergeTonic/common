@@ -1,13 +1,6 @@
 name: CI Extension
 
 on:
-  push:
-    paths:
-      - "extensions/tonic-conflict-resolver/**"
-      - "packages/tonic-core/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/ci-extension.yml"
   pull_request:
     paths:
       - "extensions/tonic-conflict-resolver/**"
