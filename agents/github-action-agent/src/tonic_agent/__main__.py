@@ -248,7 +248,8 @@ def _orchestrate_run_pr(
 ) -> tuple[int, str]:
     branch_name = _run_git(workspace, ["branch", "--show-current"]).strip()
     if not branch_name:
-        raise RuntimeError("isolated branch name is empty")
+        branch_name = f"tonic/agent/{run_id}-{base_sha[:7]}"
+        _run_git(workspace, ["checkout", "-B", branch_name, base_sha], allow_fail=False)
     payload_dir = Path(workspace) / ".tonic-agent" / "runs"
     payload_dir.mkdir(parents=True, exist_ok=True)
     payload_path = payload_dir / f"{run_id}.json"

@@ -22,6 +22,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MERGETONIC_COMMON_REPO: mergetonic/common
-          MERGETONIC_COMMON_REF: main
+          MERGETONIC_COMMON_REF: ${{ github.event.repository.default_branch }}
         run: |
           python scripts/policy/contributor_acceptance.py gate
