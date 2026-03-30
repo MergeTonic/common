@@ -637,7 +637,7 @@ export async function main(): Promise<void> {
         let usedAi = false;
         if (!isOrphan && enableAi) {
           try {
-            const content = await resolveConflictWithOpenAi(cf, reg);
+            const content = await resolveConflictWithOpenAi(cf, reg, oldLines.length);
             if (content) {
               const parsed = parseResolvedLinesFromAi(content);
               if (parsed.lines.length) {

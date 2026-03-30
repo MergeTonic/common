@@ -11,6 +11,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+from tonic.hydration import (
+    HYDRATION_OPTIONAL_AI_EXIT_CODE,
+    HydrationHistoricalOptions,
+    RunHydrateIntentsOptions,
+    build_missing_optional_ai_dependency_skip_result,
+    probe_hydration_optional_ai_dependency,
+    resolve_hydration_runtime_config,
+    run_hydrate_intents_machine_mode,
+    skip_result_to_dict,
+)
 from tonic.merge_utils import annotated_to_conflict_file, merge_snapshots, minimal_merge_report
 
 
@@ -343,3 +353,81 @@ def cmd_git_worktree(repo: str, sub: str, **kw: str | bool) -> int:
         return 0
     print("Usage: merge-tonic git worktree add|list|remove ...", file=sys.stderr)
     return 1
+
+
+def cmd_git_hydrate_intents(
+    repo: str,
+    *,
+    check_optional_ai: bool = False,
+    out_json: str | None = None,
+    non_interactive: bool = False,
+    vendoring_scaffold: bool = False,
+    intent_text: str = "",
+    intent_spec: str = "",
+    scope: str = "",
+    dry_run: bool = False,
+    prompt_profile: str = "",
+    log_llm: str = "",
+    historical_max_prs: int = 0,
+    historical_since: str = "",
+    historical_base_ref: str = "",
+    historical_state: str = "merged",
+    max_questions: int = 3,
+    query_top_k: int = 5,
+    downstream_task: str = "",
+) -> int:
+    def write_out(payload: dict[str, object]) -> None:
+        text = json.dumps(payload, indent=2)
+        if out_json:
+            out_path = Path(out_json)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(text + "\n", encoding="utf-8")
+        else:
+            print(text)
+
+    runtime = resolve_hydration_runtime_config(repo)
+    if check_optional_ai:
+        if runtime.mode != "memory":
+            probe = probe_hydration_optional_ai_dependency()
+            if not probe.available:
+                skip = build_missing_optional_ai_dependency_skip_result(repo, probe.install_hint)
+                write_out(skip_result_to_dict(skip))
+                return HYDRATION_OPTIONAL_AI_EXIT_CODE
+        write_out(
+            {
+                "ok": True,
+                "optional_dependency_group": "ai",
+                "runtime_mode": runtime.mode,
+                "hydration_skipped": False,
+            }
+        )
+        return 0
+
+    machine_mode = bool(out_json) or non_interactive or vendoring_scaffold
+    if not machine_mode:
+        machine_mode = True
+    historical_state_normalized = historical_state if historical_state in {"merged", "open", "all"} else "merged"
+    result = run_hydrate_intents_machine_mode(
+        repo,
+        RunHydrateIntentsOptions(
+            intent_text=intent_text,
+            intent_spec=intent_spec,
+            scope=scope,
+            dry_run=dry_run,
+            prompt_profile=prompt_profile,
+            log_llm=log_llm,
+            max_questions=max_questions,
+            query_top_k=query_top_k,
+            downstream_task=downstream_task,
+            historical=HydrationHistoricalOptions(
+                max_prs=max(0, int(historical_max_prs)),
+                since=historical_since,
+                base_ref=historical_base_ref,
+                state=historical_state_normalized,
+            ),
+            vendoring_scaffold=vendoring_scaffold,
+            env=dict(os.environ),
+        ),
+    )
+    write_out(result.payload)
+    return result.exit_code
