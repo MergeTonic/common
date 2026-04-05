@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -102,6 +103,41 @@ def _write_result(result_json: str, payload: dict) -> None:
     Path(result_json).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _count_files_under(root: Path) -> int:
+    if not root.is_dir():
+        return 0
+    return sum(1 for p in root.rglob("*") if p.is_file())
+
+
+def _git_refresh_index_for_paths(checkout_dir: Path, paths: list[str]) -> None:
+    """Drop cached index entries for managed paths, then re-stage from disk (avoids false no_changes)."""
+    for rel in paths:
+        if not rel or rel in (".", ".."):
+            continue
+        subprocess.run(
+            ["git", "rm", "-r", "--cached", "--ignore-unmatch", "--", rel],
+            cwd=str(checkout_dir),
+            check=False,
+            capture_output=True,
+        )
+    _run(["git", "add", "--all", "--force"], cwd=checkout_dir)
+
+
+def _git_diff_stat_head(checkout_dir: Path, paths: list[str], max_lines: int = 15) -> str:
+    if not paths:
+        return ""
+    r = subprocess.run(
+        ["git", "diff", "--stat", "HEAD", "--", *paths],
+        cwd=str(checkout_dir),
+        capture_output=True,
+        text=True,
+    )
+    lines = (r.stdout or "").strip().splitlines()
+    if not lines:
+        return ""
+    return "\n".join(lines[:max_lines])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", required=True, help="owner/name")
@@ -114,10 +150,17 @@ def main() -> int:
     parser.add_argument("--preserve-paths", default="", help="Comma-separated target-owned preserved paths")
     parser.add_argument("--pr-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--emit-sync-manifest",
+        action="store_true",
+        help="Write .github/.mergetonic-sync.json (when .github is managed) so identical trees still produce a commit.",
+    )
     parser.add_argument("--result-json", default="")
     args = parser.parse_args()
 
     source = Path(args.source_dir).resolve()
+    if not source.exists():
+        raise RuntimeError(f"source_dir does not exist: {source} (cwd={os.getcwd()})")
     work = Path(".tmp/release-sync")
     checkout_dir = work / args.repo.replace("/", "__")
     checkout_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -149,6 +192,13 @@ def main() -> int:
     if ".git" not in preserve_paths:
         preserve_paths.append(".git")
 
+    for rel in managed_paths:
+        src_check = source / rel
+        if not src_check.exists():
+            continue
+        if src_check.is_dir() and _count_files_under(src_check) == 0:
+            raise RuntimeError(f"Monorepo sync source has no files under {src_check}")
+
     # Only clear paths that are explicitly managed and not preserved.
     for rel in managed_paths:
         if _is_preserved(rel, preserve_paths):
@@ -167,11 +217,54 @@ def main() -> int:
                 else:
                     shutil.copy2(item, dst)
 
-    # Include ignored paths (e.g. target repo .gitignore listing .github); plain `git add .` skips them
-    # and yields false no_changes even when files exist on disk.
+    emit_manifest = args.emit_sync_manifest or os.environ.get(
+        "TONIC_SYNC_EMIT_MANIFEST", ""
+    ).lower() in ("1", "true", "yes")
+    if emit_manifest and ".github" in managed_paths:
+        gh = checkout_dir / ".github"
+        gh.mkdir(parents=True, exist_ok=True)
+        server = (os.environ.get("GITHUB_SERVER_URL") or "").rstrip("/")
+        repo = os.environ.get("GITHUB_REPOSITORY") or ""
+        run_id = os.environ.get("GITHUB_RUN_ID") or ""
+        run_url = f"{server}/{repo}/actions/runs/{run_id}" if server and repo and run_id else ""
+        manifest = {
+            "monorepo_repository": repo,
+            "monorepo_sha": os.environ.get("GITHUB_SHA", ""),
+            "workflow_run_url": run_url,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        (gh / ".mergetonic-sync.json").write_text(
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    for rel in managed_paths:
+        dst_check = checkout_dir / rel
+        if dst_check.is_dir() and _count_files_under(dst_check) == 0:
+            raise RuntimeError(
+                f"After copy/template, expected files under {dst_check} but found none "
+                f"(monorepo source root={source})"
+            )
+
+    # Include ignored paths (e.g. target .gitignore listing .github); refresh index for managed
+    # subtrees so we never report false no_changes when the working tree differs from the index.
     _run(["git", "add", "--all", "--force"], cwd=checkout_dir)
+    _git_refresh_index_for_paths(checkout_dir, managed_paths)
 
     diff_exit = subprocess.call(["git", "diff", "--cached", "--quiet"], cwd=checkout_dir)
+    wt_differs_from_head = False
+    if managed_paths:
+        wt_differs_from_head = (
+            subprocess.run(
+                ["git", "diff", "--quiet", "HEAD", "--", *managed_paths],
+                cwd=str(checkout_dir),
+            ).returncode
+            != 0
+        )
+    if diff_exit == 0 and wt_differs_from_head:
+        _git_refresh_index_for_paths(checkout_dir, managed_paths)
+        diff_exit = subprocess.call(["git", "diff", "--cached", "--quiet"], cwd=checkout_dir)
+
     if diff_exit == 0:
         porcelain = subprocess.run(
             ["git", "status", "--porcelain"],
@@ -190,6 +283,15 @@ def main() -> int:
             warnings.append(
                 "Working tree matches HEAD after sync — target branch already contains this content."
             )
+            stat_head = _git_diff_stat_head(checkout_dir, managed_paths)
+            if stat_head:
+                warnings.append(
+                    "git diff --stat HEAD -- managed_paths (non-empty; unexpected for no_changes):\n"
+                    + stat_head
+                )
+        target_head = ""
+        if _has_any_commit(checkout_dir):
+            target_head = _run(["git", "rev-parse", "HEAD"], cwd=checkout_dir, capture=True)
         _write_result(
             args.result_json,
             {
@@ -201,6 +303,8 @@ def main() -> int:
                 "commit": "",
                 "skipped_reason": "no_changes",
                 "warnings": warnings,
+                "target_head_sha": target_head,
+                "source_monorepo_sha": os.environ.get("GITHUB_SHA", ""),
             },
         )
         return 0
@@ -236,7 +340,7 @@ def main() -> int:
         return 0
 
     if pr_only_effective:
-        target_slug = args.target_id or source.name
+        target_slug = args.target_id or Path(args.source_dir).resolve().name
         short_sha = _get_short_sha()
         branch_prefix = f"sync/{target_slug}/"
         branch_name = f"{branch_prefix}{short_sha}"

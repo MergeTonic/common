@@ -122,12 +122,24 @@ def main() -> int:
     parser.add_argument("--head-ref", required=True)
     parser.add_argument("--targets-file", default="release-targets.json")
     parser.add_argument("--always-include", nargs="*", default=[])
+    parser.add_argument(
+        "--include-all-sync-targets",
+        action="store_true",
+        help="Include every selectable target that has release type repo_sync (ignore path diff).",
+    )
     args = parser.parse_args()
 
     targets_path = Path(args.targets_file)
     data = json.loads(targets_path.read_text(encoding="utf-8"))
     changed = [_normalize(p) for p in _git_changed_files(args.base_ref, args.head_ref)]
     forced = set(args.always_include)
+    if args.include_all_sync_targets:
+        forced.update(
+            t["id"]
+            for t in data.get("targets", [])
+            if t.get("selectable", True) is not False
+            and "repo_sync" in t.get("release_types", [])
+        )
 
     selected = []
     for target in data.get("targets", []):
