@@ -218,5 +218,24 @@ jobs:
         if: matrix.target.sync_repo == true
         env:
           RESULT: ${{ steps.sync.outputs.result }}
+          TARGET_ID: ${{ matrix.target.id }}
         run: |
-          python -c "import json, os; d=json.loads(os.environ['RESULT']); lines=[f\"### ${{ matrix.target.id }}\", f\"- status: `{d.get('status','')}`\", f\"- changed: `{d.get('changed','')}`\"]; lines += [f\"- branch: `{d['branch']}`\"] if d.get('branch') else []; lines += [f\"- pr_url: {d['pr_url']}\"] if d.get('pr_url') else []; lines += [f\"- commit: `{d.get('commit','')}`\"]; print('\\n'.join(lines))" >> "${GITHUB_STEP_SUMMARY}"
+          python - <<'PY'
+          import json
+          import os
+
+          d = json.loads(os.environ["RESULT"])
+          tid = os.environ["TARGET_ID"]
+          lines = [
+              f"### {tid}",
+              f"- status: `{d.get('status', '')}`",
+              f"- changed: `{d.get('changed', '')}`",
+          ]
+          if d.get("branch"):
+              lines.append(f"- branch: `{d['branch']}`")
+          if d.get("pr_url"):
+              lines.append(f"- pr_url: {d['pr_url']}")
+          lines.append(f"- commit: `{d.get('commit', '')}`")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY
