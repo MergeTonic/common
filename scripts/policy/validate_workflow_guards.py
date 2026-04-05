@@ -32,12 +32,15 @@ def main() -> int:
         ".github/workflows/publish-core.yml",
         ".github/workflows/publish-npm.yml",
         ".github/workflows/publish-extension.yml",
+        ".github/workflows/publish-hf-weave-npm.yml",
+        ".github/workflows/publish-hf-weave-pypi.yml",
     ]
     for wf in publish_files:
         content = _read(wf)
-        if "github.ref == 'refs/heads/main'" not in content:
+        # Allow YAML-escaped single quotes (''refs/...'') inside workflow if: expressions.
+        if "refs/heads/main" not in content or "github.ref" not in content:
             failures.append(f"{wf} missing main-ref publish guard")
-        if "github.repository == 'mergetonic/common'" not in content:
+        if "mergetonic/common" not in content or "github.repository" not in content:
             failures.append(f"{wf} missing repository publish guard")
 
     if failures:

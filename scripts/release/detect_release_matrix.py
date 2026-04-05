@@ -74,9 +74,24 @@ def _resolve_head_ref(head_ref: str) -> str:
 def _git_changed_files(base_ref: str, head_ref: str) -> list[str]:
     base = _resolve_base_ref(base_ref)
     head = _resolve_head_ref(head_ref)
-    cmd = ["git", "diff", "--name-only", f"{base}...{head}"]
-    output = subprocess.check_output(cmd, text=True)
-    return [line.strip() for line in output.splitlines() if line.strip()]
+    triple = f"{base}...{head}"
+    r = subprocess.run(
+        ["git", "diff", "--name-only", triple],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode == 0:
+        out = r.stdout
+    else:
+        # Shallow clones: base and head tips may have no recorded merge base; two-dot diff still works.
+        err = (r.stderr or "").lower()
+        if "no merge base" not in err and "bad revision" not in err:
+            r.check_returncode()
+        out = subprocess.check_output(
+            ["git", "diff", "--name-only", base, head],
+            text=True,
+        )
+    return [line.strip() for line in out.splitlines() if line.strip()]
 
 
 def _normalize(path: str) -> str:

@@ -38,14 +38,14 @@ jobs:
       - name: Verify Python action metadata
         run: |
           python - <<'PY'
-from pathlib import Path
-text = Path("agents/github-action-agent/action.yml").read_text(encoding="utf-8")
-assert "runs:" in text
-assert "using: composite" in text
-assert "tonic_version" in text
-assert "tonic_github_agent_version" in text
-print("python action.yml contract ok")
-PY
+          from pathlib import Path
+          text = Path("agents/github-action-agent/action.yml").read_text(encoding="utf-8")
+          assert "runs:" in text
+          assert "using: composite" in text
+          assert "tonic_version" in text
+          assert "tonic_github_agent_version" in text
+          print("python action.yml contract ok")
+          PY
 
   node-action-hydration:
     runs-on: ubuntu-latest

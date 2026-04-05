@@ -1,0 +1,21 @@
+# Run from Actions → this workflow → "Run workflow" (any branch you are allowed to run).
+# Default is dry-run so you can sanity-check; turn dry_run off to push to the repo wiki.
+name: Wiki publish (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true = checks + no git push to wiki; false = publish for real"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-wiki-callable.yml
+    with:
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
