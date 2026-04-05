@@ -5,8 +5,8 @@ node_modules/
 # Memory
 memory
 
-# Legacy grep-based prototype (removed from tree; ignore if reintroduced locally)
-ast-grep/
+# Legacy grep-based prototype at repo root only (do not ignore packages/tonic-core/rules/ast-grep)
+/ast-grep/
 
 # Build output (if not committed by policy)
 dist/

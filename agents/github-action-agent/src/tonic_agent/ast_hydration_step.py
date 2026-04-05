@@ -98,6 +98,7 @@ def run_ast_hydration_step(repo_root: str) -> dict[str, Any] | None:
             except (OSError, json.JSONDecodeError):
                 excerpt = None
         if rc not in (0, 13):
+            # lgtm[py/clear-text-logging-sensitive-data] -- Logs only integer exit code; no credential or artifact payload.
             print(f"Tonic agent: merge-tonic hydrate exited {rc}", file=sys.stderr)
             if _truthy(os.environ.get("INPUT_AST_HYDRATION_STRICT")):
                 raise RuntimeError(f"merge-tonic hydrate failed with exit {rc}")
@@ -123,6 +124,7 @@ def run_ast_hydration_step(repo_root: str) -> dict[str, Any] | None:
     argv = ["--repo", root, "--out", out, "--run-out", run_out, *extra]
     rc = run_ast_grep_hydrate(parse_ast_grep_hydrate_argv(argv))
     if rc not in (0, 13):
+        # lgtm[py/clear-text-logging-sensitive-data] -- Logs only integer exit code; no credential or artifact payload.
         print(f"Tonic agent: ast-grep-hydrate exited {rc}", file=sys.stderr)
         if _truthy(os.environ.get("INPUT_AST_HYDRATION_STRICT")):
             raise RuntimeError(f"ast-grep-hydrate failed with exit {rc}")

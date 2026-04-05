@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-2.0-only" }
 authors = [{ name = "Merge Tonic contributors" }]
+dependencies = ["typing_extensions>=4.6.0"]
 
 [project.urls]
 Documentation = "https://github.com/mergetonic/common/wiki/Core-Python-mergetonic"

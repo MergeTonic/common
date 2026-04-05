@@ -11,7 +11,11 @@ test("resolveHubRepoSpec bare id", () => {
 test("resolveGitHubRemoteSpec https", () => {
   const r = resolveGitHubRemoteSpec("https://github.com/foo/bar");
   assert.equal(r?.kind, "github");
-  assert.ok(r?.url.includes("github.com"));
+  if (!r?.url) {
+    assert.fail("Expected resolveGitHubRemoteSpec to return a URL");
+  } else {
+    assert.equal(new URL(r.url).hostname, "github.com");
+  }
 });
 
 test("resolveRemoteSpec hf url", () => {

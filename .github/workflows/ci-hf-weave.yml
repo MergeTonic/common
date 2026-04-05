@@ -1,17 +1,6 @@
 name: CI hf-weave
 
 on:
-  push:
-    paths:
-      - "packages/hf-weave/**"
-      - "packages/hf-weave-py/**"
-      - "packages/tonic-core/src/weaveGit/**"
-      - "packages/tonic-core/src/weaveCli.ts"
-      - "merge-tonic-lib/tonic/weave_git/**"
-      - "merge-tonic-lib/tonic/hf_weave/**"
-      - "schemas/tonic-git-*.json"
-      - "schemas/tonic-weave-*.json"
-      - ".github/workflows/ci-hf-weave.yml"
   pull_request:
     paths:
       - "packages/hf-weave/**"
@@ -36,7 +25,7 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
-      - run: npm run build -w @mergetonic/core -w @mergetonic/hf-weave
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - run: npm run test -w @mergetonic/core
       - run: npm run test -w @mergetonic/hf-weave
       - name: No Hub imports in @mergetonic/core sources
@@ -59,7 +48,7 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
-      - run: npm run build -w @mergetonic/core
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

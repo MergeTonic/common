@@ -157,15 +157,15 @@ jobs:
             f.write(f"PUBLISH_HF_WEAVE={'true' if 'hf-weave' in ids else 'false'}\n")
           PY
           if [ "${PUBLISH_TSMT}" = "true" ]; then
-            npm run build -w @mergetonic/core
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
             npm publish -w @mergetonic/core --access public
           fi
           if [ "${PUBLISH_HF_WEAVE}" = "true" ]; then
-            npm run build -w @mergetonic/core -w @mergetonic/hf-weave
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
             npm publish -w @mergetonic/hf-weave --access public
           fi
           if [ "${PUBLISH_JS_ACTION}" = "true" ]; then
-            npm run build -w @mergetonic/core -w @mergetonic/github-agent
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core -w @mergetonic/github-agent
             npm publish -w @mergetonic/github-agent --access public
           fi
       - name: Build mergetonic package
@@ -206,7 +206,7 @@ jobs:
             f.write(f"PUBLISH_VSMT={'true' if 'vsmt' in ids else 'false'}\n")
           PY
           if [ "${PUBLISH_VSMT}" = "true" ]; then
-            npm run build -w @mergetonic/core
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
             npm run compile -w merge-conflict-resolver
             pushd extensions/tonic-conflict-resolver
             npx --yes @vscode/vsce package --no-dependencies

@@ -1,0 +1,17 @@
+# Ast-grep rulepack index. Each file is a low-noise sentinel rule for hydration scans.
+version: 1
+ruleFiles:
+  - typescript.yml
+  - tsx.yml
+  - javascript.yml
+  - jsx.yml
+  - python.yml
+  - yaml.yml
+  - json.yml
+  - toml.yml
+  - rust.yml
+  - go.yml
+  - java.yml
+  - c.yml
+  - cpp.yml
+  - csharp.yml

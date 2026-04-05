@@ -9,6 +9,7 @@ from typing import Any, Literal
 from tonic.hydration.hydration_config import ResolvedHydrationConfig
 from tonic.hydration.hydration_prompt_template import apply_hydration_template, load_hydration_prompt_body
 from tonic.hydration.intent_bootstrap import digest_for_refinement_context
+from tonic.hydration.sensitive_artifact_redaction import redact_sensitive_values
 from tonic.hydration.llm_refinement import LlmChatParams, call_llm_json, parse_question_refinement_json
 
 IMPROVER_SYSTEM_FALLBACK = (
@@ -22,6 +23,15 @@ POST_RETRIEVAL_SYSTEM_FALLBACK = (
     "You output only valid JSON with keys refined_left_intent, refined_right_intent, "
     "merge_goals (string array), assumptions (string array), informed_by_retrieval (boolean optional)."
 )
+
+
+def _redact_env_key_name(key_name: str) -> str:
+    kn = (key_name or "").strip()
+    if not kn:
+        return "OPENAI_API_KEY"
+    if len(kn) > 64 or any(ch in kn for ch in ("=", " ", "\t", "\n")):
+        return "<redacted-env-key>"
+    return kn
 
 
 def run_question_refinement(
@@ -99,8 +109,9 @@ def run_question_refinement(
     if not api_key and (localhost or allow_dummy):
         api_key = "dummy"
     if not api_key:
+        redacted_key = _redact_env_key_name(key_name)
         if config.strict_llm:
-            return "fail", None, True, f"missing API key env {key_name}", 11
+            return "fail", None, True, f"missing API key env {redacted_key}", 11
         return (
             "ok",
             {
@@ -113,7 +124,7 @@ def run_question_refinement(
                 "prompt_template_ids": [f"skipped:{mode}"],
             },
             True,
-            f"skipped question refinement: missing {key_name}",
+            f"skipped question refinement: missing {redacted_key}",
             None,
         )
 
@@ -197,7 +208,8 @@ def run_question_refinement(
 def write_question_refinement(path_out: str, art: dict[str, Any]) -> None:
     p = Path(path_out).resolve()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(art, indent=2) + "\n", encoding="utf-8")
+    sanitized = redact_sensitive_values(art)
+    p.write_text(json.dumps(sanitized, indent=2) + "\n", encoding="utf-8")
 
 
 def run_post_retrieval_question_refinement(
@@ -236,8 +248,9 @@ def run_post_retrieval_question_refinement(
     if not api_key and (localhost or allow_dummy):
         api_key = "dummy"
     if not api_key:
+        redacted_key = _redact_env_key_name(key_name)
         if config.strict_llm:
-            return "fail", None, True, f"missing API key env {key_name}", 11
+            return "fail", None, True, f"missing API key env {redacted_key}", 11
         return (
             "ok",
             {
@@ -250,7 +263,7 @@ def run_post_retrieval_question_refinement(
                 "prompt_template_ids": ["skipped:post_retrieval"],
             },
             True,
-            f"skipped post-retrieval refinement: missing {key_name}",
+            f"skipped post-retrieval refinement: missing {redacted_key}",
             None,
         )
 

@@ -63,6 +63,7 @@ def _iso() -> str:
 
 def _write_json(p: Path, obj: Any) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
+    # lgtm[py/clear-text-storage-sensitive-data] -- Pipeline JSON under controlled out_dir; credentials not in schema; user merge context by design.
     p.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
 
 

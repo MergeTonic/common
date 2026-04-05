@@ -23,7 +23,7 @@ jobs:
       - name: Install monorepo deps
         run: npm ci
       - name: Build @mergetonic/core
-        run: npm run build -w @mergetonic/core
+        run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - name: Compile extension (bundle)
         run: npm run compile -w merge-conflict-resolver
       - name: Verify extension bundle matches commit (sourcemap + no drift)

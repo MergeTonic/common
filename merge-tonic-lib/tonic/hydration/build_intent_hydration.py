@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from tonic.hydration.sensitive_artifact_redaction import redact_sensitive_values
+
 
 def _pick_intents(boot: dict[str, Any], refine: dict[str, Any] | None) -> tuple[str, str]:
     if refine:
@@ -198,4 +200,4 @@ def build_intent_hydration(
 def write_intent_hydration(path_out: str, art: dict[str, Any]) -> None:
     p = Path(path_out).resolve()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(art, indent=2) + "\n", encoding="utf-8")
+    p.write_text(json.dumps(redact_sensitive_values(art), indent=2) + "\n", encoding="utf-8")

@@ -37,7 +37,7 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
-      - run: npm run build -w @mergetonic/core -w @mergetonic/hf-weave
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - run: npm publish -w @mergetonic/hf-weave --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

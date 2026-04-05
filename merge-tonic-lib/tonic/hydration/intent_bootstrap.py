@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tonic.hydration.hydration_prompt_template import apply_hydration_template, load_hydration_prompt_body
+from tonic.hydration.sensitive_artifact_redaction import redact_sensitive_values
 
 DEFAULT_GIT_MERGE_LEFT_INTENT = "preserve_base"
 DEFAULT_GIT_MERGE_RIGHT_INTENT = "prefer_head"
@@ -132,6 +133,7 @@ def resolve_intent_bootstrap(
 
 
 def digest_for_refinement_context(parts: list[str]) -> str:
+    # lgtm[py/weak-sensitive-data-hashing] -- SHA-256 is a content fingerprint for refinement context, not password storage.
     h = hashlib.sha256()
     for p in parts:
         h.update(p.encode("utf-8"))
@@ -142,4 +144,5 @@ def digest_for_refinement_context(parts: list[str]) -> str:
 def write_intent_bootstrap(path_out: str, art: dict[str, Any]) -> None:
     p = Path(path_out).resolve()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(art, indent=2) + "\n", encoding="utf-8")
+    # lgtm[py/clear-text-storage-sensitive-data] -- Local hydrate artifact; keys redacted; merge context may include user text by design.
+    p.write_text(json.dumps(redact_sensitive_values(art), indent=2) + "\n", encoding="utf-8")

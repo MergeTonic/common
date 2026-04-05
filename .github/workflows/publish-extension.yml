@@ -41,7 +41,7 @@ jobs:
       - name: Build VSIX (monorepo)
         run: |
           npm ci
-          npm run build -w @mergetonic/core
+          npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
           npm run compile -w merge-conflict-resolver
       - name: Package
         working-directory: extensions/tonic-conflict-resolver

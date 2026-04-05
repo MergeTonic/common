@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import NotRequired, TypedDict
+from typing import TypedDict
+
+try:
+    from typing import NotRequired
+except ImportError:  # Python < 3.11
+    from typing_extensions import NotRequired
 
 
 class PathManifestEntry(TypedDict, total=False):
