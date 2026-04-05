@@ -24,9 +24,26 @@ jobs:
       base_ref: ${{ inputs.base_ref }}
       head_ref: ${{ inputs.head_ref }}
 
+  test:
+    needs: detect
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "js-action"'') }}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: python scripts/sync_agent_ai_prompts.py
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
+      - run: npm run test -w @mergetonic/github-agent
+
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "js-action"') && inputs.publish_npm == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "js-action"'') && inputs.publish_npm == true && github.ref == ''refs/heads/main'' && github.repository == ''mergetonic/common'' }}'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,20 +66,3 @@ jobs:
       - run: npm publish -w @mergetonic/github-agent --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  test:
-    needs: detect
-    if: contains(needs.detect.outputs.matrix_json, '"id": "js-action"')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "20"
-      - run: npm ci
-      - run: python scripts/sync_agent_ai_prompts.py
-      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
-      - run: npm run test -w @mergetonic/github-agent

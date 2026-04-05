@@ -24,9 +24,21 @@ jobs:
       base_ref: ${{ inputs.base_ref }}
       head_ref: ${{ inputs.head_ref }}
 
+  test:
+    needs: detect
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "mtpy"'') }}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "./merge-tonic-lib[dev,hf-weave]"
+      - run: python -m pytest merge-tonic-lib/tests -v
+
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "mtpy"') && inputs.publish_pypi == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "mtpy"'') && inputs.publish_pypi == true && github.ref == ''refs/heads/main'' && github.repository == ''mergetonic/common'' }}'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -43,15 +55,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: merge-tonic-lib/dist/
-
-  test:
-    needs: detect
-    if: contains(needs.detect.outputs.matrix_json, '"id": "mtpy"')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - run: pip install -e "./merge-tonic-lib[dev,hf-weave]"
-      - run: python -m pytest merge-tonic-lib/tests -v
