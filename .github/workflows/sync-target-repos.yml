@@ -22,6 +22,14 @@ on:
         required: false
         type: boolean
         default: true
+      include_all_sync_targets:
+        required: false
+        type: boolean
+        default: false
+      emit_sync_manifest:
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       base_ref:
@@ -50,6 +58,16 @@ on:
         required: true
         type: boolean
         default: true
+      include_all_sync_targets:
+        description: Run sync for every repo_sync target even if paths did not change vs base_ref
+        required: true
+        type: boolean
+        default: false
+      emit_sync_manifest:
+        description: Write .github/.mergetonic-sync.json when syncing .github (forces a commit if trees match)
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,7 +83,11 @@ jobs:
       - name: Detect changed targets
         id: detect
         run: |
-          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py --base-ref '${{ inputs.base_ref }}' --head-ref '${{ inputs.head_ref }}')"
+          EXTRA=""
+          if [ "${{ inputs.include_all_sync_targets }}" = "true" ]; then
+            EXTRA="${EXTRA} --include-all-sync-targets"
+          fi
+          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py --base-ref '${{ inputs.base_ref }}' --head-ref '${{ inputs.head_ref }}' ${EXTRA})"
           TARGET_COUNT="$(python -c 'import json,sys; print(json.loads(sys.argv[1])["include_count"])' "${MATRIX_JSON}")"
           {
             echo "matrix_json<<EOF"
@@ -156,6 +178,10 @@ jobs:
             PR_ONLY="--pr-only"
           fi
           RESULT=".tmp/release-sync-result-${{ matrix.target.id }}.json"
+          MANIFEST=""
+          if [ "${{ inputs.emit_sync_manifest }}" = "true" ]; then
+            MANIFEST="--emit-sync-manifest"
+          fi
 
           python scripts/release/sync_target_repo.py \
             --target-id "${{ matrix.target.id }}" \
@@ -167,6 +193,7 @@ jobs:
             --target-branch "${{ inputs.target_branch }}" \
             --commit-message "sync(${{ matrix.target.id }}): update from common @ ${{ github.sha }}" \
             --result-json "${RESULT}" \
+            ${MANIFEST} \
             ${PR_ONLY} \
             ${DRY}
           echo "result_path=${RESULT}" >> "${GITHUB_OUTPUT}"
@@ -242,6 +269,16 @@ jobs:
           if d.get("pr_url"):
               lines.append(f"- pr_url: {d['pr_url']}")
           lines.append(f"- commit: `{d.get('commit', '')}`")
+          if d.get("target_head_sha"):
+              lines.append(f"- target_head_sha: `{d['target_head_sha']}`")
+          if d.get("source_monorepo_sha"):
+              lines.append(f"- source_monorepo_sha: `{d['source_monorepo_sha']}`")
+          if d.get("status") == "no_changes":
+              lines.append(
+                  "- If you expected a push: compare this **target_head_sha** on GitHub with your monorepo commit; "
+                  "identical `.github` trees yield **no_changes**. Use **emit_sync_manifest** to force a stamp commit, "
+                  "or **include_all_sync_targets** to sync every mirror even when the path diff is empty."
+              )
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
               fh.write("\n".join(lines) + "\n")
           PY

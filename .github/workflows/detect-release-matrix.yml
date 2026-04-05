@@ -13,6 +13,10 @@ on:
         required: false
         type: string
         default: ""
+      include_all_sync_targets:
+        required: false
+        type: boolean
+        default: false
     outputs:
       matrix_json:
         description: Changed targets matrix JSON
@@ -36,6 +40,9 @@ jobs:
           ALWAYS_ARGS=""
           if [ -n "${{ inputs.always_include }}" ]; then
             ALWAYS_ARGS="--always-include ${{ inputs.always_include }}"
+          fi
+          if [ "${{ inputs.include_all_sync_targets }}" = "true" ]; then
+            ALWAYS_ARGS="${ALWAYS_ARGS} --include-all-sync-targets"
           fi
 
           MATRIX_JSON="$(python scripts/release/detect_release_matrix.py \

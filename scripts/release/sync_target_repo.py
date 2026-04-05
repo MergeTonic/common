@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -149,6 +150,11 @@ def main() -> int:
     parser.add_argument("--preserve-paths", default="", help="Comma-separated target-owned preserved paths")
     parser.add_argument("--pr-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--emit-sync-manifest",
+        action="store_true",
+        help="Write .github/.mergetonic-sync.json (when .github is managed) so identical trees still produce a commit.",
+    )
     parser.add_argument("--result-json", default="")
     args = parser.parse_args()
 
@@ -211,6 +217,27 @@ def main() -> int:
                 else:
                     shutil.copy2(item, dst)
 
+    emit_manifest = args.emit_sync_manifest or os.environ.get(
+        "TONIC_SYNC_EMIT_MANIFEST", ""
+    ).lower() in ("1", "true", "yes")
+    if emit_manifest and ".github" in managed_paths:
+        gh = checkout_dir / ".github"
+        gh.mkdir(parents=True, exist_ok=True)
+        server = (os.environ.get("GITHUB_SERVER_URL") or "").rstrip("/")
+        repo = os.environ.get("GITHUB_REPOSITORY") or ""
+        run_id = os.environ.get("GITHUB_RUN_ID") or ""
+        run_url = f"{server}/{repo}/actions/runs/{run_id}" if server and repo and run_id else ""
+        manifest = {
+            "monorepo_repository": repo,
+            "monorepo_sha": os.environ.get("GITHUB_SHA", ""),
+            "workflow_run_url": run_url,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        (gh / ".mergetonic-sync.json").write_text(
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     for rel in managed_paths:
         dst_check = checkout_dir / rel
         if dst_check.is_dir() and _count_files_under(dst_check) == 0:
@@ -262,6 +289,9 @@ def main() -> int:
                     "git diff --stat HEAD -- managed_paths (non-empty; unexpected for no_changes):\n"
                     + stat_head
                 )
+        target_head = ""
+        if _has_any_commit(checkout_dir):
+            target_head = _run(["git", "rev-parse", "HEAD"], cwd=checkout_dir, capture=True)
         _write_result(
             args.result_json,
             {
@@ -273,6 +303,8 @@ def main() -> int:
                 "commit": "",
                 "skipped_reason": "no_changes",
                 "warnings": warnings,
+                "target_head_sha": target_head,
+                "source_monorepo_sha": os.environ.get("GITHUB_SHA", ""),
             },
         )
         return 0
@@ -308,7 +340,7 @@ def main() -> int:
         return 0
 
     if pr_only_effective:
-        target_slug = args.target_id or source.name
+        target_slug = args.target_id or Path(args.source_dir).resolve().name
         short_sha = _get_short_sha()
         branch_prefix = f"sync/{target_slug}/"
         branch_name = f"{branch_prefix}{short_sha}"

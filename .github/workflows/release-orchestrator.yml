@@ -33,6 +33,16 @@ on:
         required: true
         type: boolean
         default: true
+      include_all_sync_targets:
+        description: Include every repo_sync target in the matrix even if paths did not change vs base_ref
+        required: true
+        type: boolean
+        default: false
+      emit_sync_manifest:
+        description: Write .github/.mergetonic-sync.json when syncing .github (forces a commit if trees match)
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -48,7 +58,11 @@ jobs:
       - name: Detect changed targets
         id: detect
         run: |
-          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py --base-ref '${{ inputs.base_ref }}' --head-ref '${{ inputs.head_ref }}')"
+          EXTRA=""
+          if [ "${{ inputs.include_all_sync_targets }}" = "true" ]; then
+            EXTRA="${EXTRA} --include-all-sync-targets"
+          fi
+          MATRIX_JSON="$(python scripts/release/detect_release_matrix.py --base-ref '${{ inputs.base_ref }}' --head-ref '${{ inputs.head_ref }}' ${EXTRA})"
           TARGET_COUNT="$(python -c 'import json,sys; print(json.loads(sys.argv[1])["include_count"])' "${MATRIX_JSON}")"
           {
             echo "matrix_json<<EOF"
@@ -70,7 +84,12 @@ jobs:
       - name: Check prompt bundle / hydration embed sync
         run: python scripts/generate_prompt_bundle.py --check
       - name: Validate release matrix generation
-        run: python scripts/release/detect_release_matrix.py --base-ref "${{ inputs.base_ref }}" --head-ref "${{ inputs.head_ref }}" > /tmp/matrix.json
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.include_all_sync_targets }}" = "true" ]; then
+            EXTRA="--include-all-sync-targets"
+          fi
+          python scripts/release/detect_release_matrix.py --base-ref "${{ inputs.base_ref }}" --head-ref "${{ inputs.head_ref }}" ${EXTRA} > /tmp/matrix.json
       - name: Validate action hydration contracts
         run: |
           python - <<'PY'
@@ -287,6 +306,10 @@ jobs:
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             DRY="--dry-run"
           fi
+          MANIFEST=""
+          if [ "${{ inputs.emit_sync_manifest }}" = "true" ]; then
+            MANIFEST="--emit-sync-manifest"
+          fi
           python scripts/release/sync_target_repo.py \
             --target-id "${{ matrix.target.id }}" \
             --repo "${{ matrix.target.repo }}" \
@@ -296,5 +319,6 @@ jobs:
             --preserve-paths "${{ join(matrix.target.sync_policy.preserve_paths, ',') }}" \
             --target-branch "${{ inputs.target_branch }}" \
             --commit-message "sync(${{ matrix.target.id }}): update from common @ ${{ github.sha }}" \
+            ${MANIFEST} \
             ${PR_ONLY} \
             ${DRY}
