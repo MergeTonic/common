@@ -167,10 +167,29 @@ def main() -> int:
                 else:
                     shutil.copy2(item, dst)
 
-    _run(["git", "add", "."], cwd=checkout_dir)
+    # Include ignored paths (e.g. target repo .gitignore listing .github); plain `git add .` skips them
+    # and yields false no_changes even when files exist on disk.
+    _run(["git", "add", "--all", "--force"], cwd=checkout_dir)
 
     diff_exit = subprocess.call(["git", "diff", "--cached", "--quiet"], cwd=checkout_dir)
     if diff_exit == 0:
+        porcelain = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(checkout_dir),
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        warnings: list[str] = []
+        if porcelain:
+            warnings.append(
+                "Staged diff is empty but git status is not; inspect target .gitignore / excludes."
+            )
+            lines = porcelain.splitlines()
+            warnings.append("git status --porcelain (first 40 lines):\n" + "\n".join(lines[:40]))
+        else:
+            warnings.append(
+                "Working tree matches HEAD after sync — target branch already contains this content."
+            )
         _write_result(
             args.result_json,
             {
@@ -181,7 +200,7 @@ def main() -> int:
                 "pr_url": "",
                 "commit": "",
                 "skipped_reason": "no_changes",
-                "warnings": [],
+                "warnings": warnings,
             },
         )
         return 0
