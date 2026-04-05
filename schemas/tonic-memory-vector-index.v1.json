@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-memory-vector-index.v1.json",
+  "title": "TonicMemoryVectorIndexV1",
+  "type": "object",
+  "required": ["schema", "version", "embedding_fingerprint", "records"],
+  "properties": {
+    "schema": { "const": "tonic-memory-vector-index" },
+    "version": { "type": "string", "const": "1" },
+    "embedding_fingerprint": { "type": "string" },
+    "embedding_dim": { "type": "integer", "minimum": 1 },
+    "digest_algorithm": { "type": "string", "const": "sha256" },
+    "ruleset_hash": { "type": "string" },
+    "repo_head": { "type": "string" },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "document", "embedding", "metadata", "content_digest"],
+        "properties": {
+          "id": { "type": "string" },
+          "document": { "type": "string" },
+          "embedding": {
+            "type": "array",
+            "items": { "type": "number" }
+          },
+          "metadata": { "type": "object", "additionalProperties": true },
+          "content_digest": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

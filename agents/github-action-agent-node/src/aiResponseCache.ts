@@ -81,7 +81,12 @@ export class AiResponseCacheFacade {
     return new AiResponseCacheFacade(new DiskAiResolutionCache(base, ttlSeconds), enabled);
   }
 
-  getConflict(model: string, conflictFile: ConflictFile, conflict: ConflictRegion): CachedAiResponse | null {
+  getConflict(
+    model: string,
+    conflictFile: ConflictFile,
+    conflict: ConflictRegion,
+    hydrationDigest = "",
+  ): CachedAiResponse | null {
     if (!this.enabled) {
       return null;
     }
@@ -93,6 +98,7 @@ export class AiResponseCacheFacade {
       String(conflict.endLine),
       conflict.leftContent ?? "",
       conflict.rightContent ?? "",
+      hydrationDigest,
     );
     return this.inner.load(key);
   }
@@ -102,6 +108,7 @@ export class AiResponseCacheFacade {
     conflictFile: ConflictFile,
     conflict: ConflictRegion,
     r: CachedAiResponse,
+    hydrationDigest = "",
   ): void {
     if (!this.enabled) {
       return;
@@ -114,6 +121,7 @@ export class AiResponseCacheFacade {
       String(conflict.endLine),
       conflict.leftContent ?? "",
       conflict.rightContent ?? "",
+      hydrationDigest,
     );
     this.inner.save(key, r);
   }

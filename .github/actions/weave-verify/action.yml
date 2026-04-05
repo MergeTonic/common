@@ -1,0 +1,27 @@
+name: Tonic weave verify
+description: |
+  Run `merge-tonic weave verify` after you install `mergetonic` (e.g. pip install mergetonic).
+  Fork PRs: avoid Hub writes; use read-only verify or skip when HF_TOKEN is missing.
+
+inputs:
+  repo_path:
+    description: Path to git repository root
+    required: false
+    default: "."
+  strict:
+    description: If true, pass --strict
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Weave verify
+      shell: bash
+      env:
+        MERGETONIC_LICENSE_ACCEPTED: "1"
+      run: |
+        set -euo pipefail
+        STRICT_FLAG=""
+        if [ "${{ inputs.strict }}" = "true" ]; then STRICT_FLAG="--strict"; fi
+        merge-tonic weave verify --repo "${{ inputs.repo_path }}" ${STRICT_FLAG}

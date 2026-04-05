@@ -13,6 +13,20 @@
     "head_sha": { "type": "string" },
     "base_ref": { "type": "string" },
     "head_ref": { "type": "string" },
+    "merge_base_sha": {
+      "type": "string",
+      "description": "Git merge-base commit for three-way compare"
+    },
+    "left_ref": { "type": "string" },
+    "right_ref": { "type": "string" },
+    "compare_mode": {
+      "type": "string",
+      "description": "e.g. two-way | three-way | weave | snapshot"
+    },
+    "tonic_repo_profile": {
+      "type": "object",
+      "description": "Snapshot of .tonic/repo.json when emitted via merge-tonic repo compare"
+    },
     "marker_branch": {
       "type": "string",
       "description": "Branch pushed by the agent with Tonic marker file contents (when markers_present)."
@@ -29,6 +43,21 @@
     "merge_report_artifact_name": {
       "type": "string",
       "description": "Suggested workflow artifact filename for this JSON (e.g. merge-tonic-report.json)."
+    },
+    "ast_hydration": {
+      "type": "object",
+      "description": "Optional ast-grep or full hydrate pipeline summary when the GitHub agent ran merge-tonic.",
+      "properties": {
+        "mode": { "type": "string" },
+        "exit_code": { "type": "integer" },
+        "hydration_run_path": { "type": "string" },
+        "ast_evidence_path": { "type": "string" },
+        "intent_hydration_path": { "type": "string" },
+        "retrieval_path": { "type": ["string", "null"] },
+        "code_walk_trace_path": { "type": ["string", "null"] },
+        "prompt_excerpt": { "type": "string" }
+      },
+      "additionalProperties": true
     },
     "files": {
       "type": "array",
@@ -52,6 +81,9 @@
           "type": "string",
           "description": "Optional right snapshot commit id used for provenance summaries."
         },
+        "merge_base_sha": { "type": "string" },
+        "compare_three": { "type": "boolean" },
+        "weave_merge": { "type": "boolean" },
         "left_line_count": { "type": "integer" },
         "right_line_count": { "type": "integer" },
         "merged_line_count": { "type": "integer" },

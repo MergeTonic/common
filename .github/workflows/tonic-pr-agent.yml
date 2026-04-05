@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   tonic:
-    if: github.actor != 'github-actions[bot]' && !startsWith(github.head_ref, 'sync/')
+    if: github.actor != 'github-actions[bot]' && !startsWith(github.head_ref, 'sync/') && vars.TONIC_PR_AGENT_CHROMA_SERVICE != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -63,6 +63,49 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: merge-tonic-report
+          path: ${{ steps.tonic.outputs.report_path }}
+
+  # Gated: set repo variable TONIC_PR_AGENT_CHROMA_SERVICE to 'true' to run full hydrate with Chroma (see docs/retrieval-hydration.md).
+  tonic_ast_chroma:
+    if: github.actor != 'github-actions[bot]' && !startsWith(github.head_ref, 'sync/') && vars.TONIC_PR_AGENT_CHROMA_SERVICE == 'true'
+    runs-on: ubuntu-latest
+    services:
+      chroma:
+        image: chromadb/chroma:0.5.23
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Tonic agent (Chroma hydration)
+        id: tonic
+        uses: ./agents/github-action-agent
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          comment_mode: all
+          verbosity: medium
+          merge_engine: git
+          hydrate_mode: pr-diff
+          report_path: merge-tonic-report.json
+          enable_ai: "false"
+          enable_checks: "false"
+          enable_ast_hydration: true
+          ast_hydration_subcommand: hydrate
+          ast_hydration_extra_args: --enable-retrieval --retrieval-backend chroma
+          tonic_chroma_url: http://127.0.0.1:8000
+          tonic_retrieval_backend: chroma
+
+      - name: Log Tonic action outputs
+        run: |
+          echo "tonic.status=${{ steps.tonic.outputs.status }}"
+          echo "tonic.files_analyzed=${{ steps.tonic.outputs.files_analyzed }}"
+          echo "tonic.conflicted_files=${{ steps.tonic.outputs.conflicted_files }}"
+
+      - name: Upload merge report
+        if: ${{ steps.tonic.outputs.report_path != '' && hashFiles(steps.tonic.outputs.report_path) != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: merge-tonic-report-chroma
           path: ${{ steps.tonic.outputs.report_path }}
 
   tonic_skip_notice:

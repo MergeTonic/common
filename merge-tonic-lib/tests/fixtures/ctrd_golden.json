@@ -1,0 +1,13 @@
+{
+  "description": "Cross-language CTRD id parity (Python tonic.hf_weave.ctrd vs TS @mergetonic/hf-weave)",
+  "payload": {
+    "schema": "tonic-weave-trace-replay",
+    "version": "1",
+    "manifest_commit": "abc",
+    "path": "f.txt",
+    "steps": [{ "commit": "c1", "lines": ["a"] }],
+    "diff_engine_id": "tonic-v1",
+    "weave_format_version": "1"
+  },
+  "ctrd_id": "4acda21c10caf19169845026e1015cb33fc09405ef9df561e9e9a8e1a1f22947"
+}

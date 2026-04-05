@@ -1,0 +1,137 @@
+# Comment-driven Tonic agent: comment on a PR with @tonicmerge to re-run hydration and upsert
+# PR comments on the same PR (merge_engine=api). This differs from tonic-pr-agent.yml, which
+# uses merge_engine=git and publishes to a new isolated run PR.
+#
+# Optional body tokens (after @tonicmerge): hydrate, intent=left,right, q="...", question_mode=on|off|auto,
+#   retrieval | retrieval=on, retrieval_backend=chroma|memory (appends ast_hydration_extra_args).
+#
+# Chroma / retrieval wiring (copy-paste when using retrieval_backend=chroma or --retrieval-backend chroma):
+#   - Job `tonic_ast_chroma` (below) enables a local Chroma service when repo variable TONIC_PR_AGENT_CHROMA_SERVICE == 'true'.
+#   - Or on the agent step, uncomment and adapt:
+#       env:
+#         TONIC_CHROMA_URL: ${{ secrets.TONIC_CHROMA_URL }}
+#         TONIC_RETRIEVAL_BACKEND: chroma
+#       with:
+#         tonic_chroma_url: ${{ secrets.TONIC_CHROMA_URL }}
+#         ast_hydration_extra_args: --enable-retrieval --retrieval-backend chroma
+#
+# OpenAI and other secrets stay in repo/org secrets; map them on the action step when you enable AI.
+
+name: Tonic PR agent (comment @tonicmerge)
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: tonic-comment-${{ github.repository }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  tonic:
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@tonicmerge') &&
+      vars.TONIC_PR_AGENT_CHROMA_SERVICE != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Parse @tonicmerge comment
+        id: parse
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: python3 "${GITHUB_WORKSPACE}/scripts/ci/parse_tonicmerge_comment.py"
+
+      - name: Run Tonic agent
+        id: tonic
+        uses: ./agents/github-action-agent
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          comment_mode: all
+          verbosity: medium
+          merge_engine: api
+          hydrate_mode: pr-diff
+          report_path: merge-tonic-report.json
+          enable_ai: "false"
+          enable_checks: "false"
+          enable_ast_hydration: ${{ steps.parse.outputs.enable_ast_hydration }}
+          ast_hydration_subcommand: ${{ steps.parse.outputs.ast_hydration_subcommand }}
+          ast_hydration_extra_args: ${{ steps.parse.outputs.ast_hydration_extra_args }}
+          intent_pair: ${{ steps.parse.outputs.intent_pair }}
+          hydration_user_query: ${{ steps.parse.outputs.hydration_user_query }}
+          hydration_question_mode: ${{ steps.parse.outputs.hydration_question_mode }}
+
+      - name: Log Tonic action outputs
+        run: |
+          echo "tonic.status=${{ steps.tonic.outputs.status }}"
+          echo "tonic.files_analyzed=${{ steps.tonic.outputs.files_analyzed }}"
+          echo "tonic.conflicted_files=${{ steps.tonic.outputs.conflicted_files }}"
+
+      - name: Upload merge report
+        if: ${{ steps.tonic.outputs.report_path != '' && hashFiles(steps.tonic.outputs.report_path) != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: merge-tonic-report-comment
+          path: ${{ steps.tonic.outputs.report_path }}
+
+  tonic_ast_chroma:
+    if: |
+      vars.TONIC_PR_AGENT_CHROMA_SERVICE == 'true' &&
+      github.actor != 'github-actions[bot]' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@tonicmerge')
+    runs-on: ubuntu-latest
+    services:
+      chroma:
+        image: chromadb/chroma:0.5.23
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Parse @tonicmerge comment
+        id: parse
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: python3 "${GITHUB_WORKSPACE}/scripts/ci/parse_tonicmerge_comment.py"
+
+      - name: Run Tonic agent (Chroma retrieval)
+        id: tonic
+        uses: ./agents/github-action-agent
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          comment_mode: all
+          verbosity: medium
+          merge_engine: api
+          hydrate_mode: pr-diff
+          report_path: merge-tonic-report.json
+          enable_ai: "false"
+          enable_checks: "false"
+          enable_ast_hydration: true
+          ast_hydration_subcommand: hydrate
+          ast_hydration_extra_args: ${{ steps.parse.outputs.ast_hydration_extra_args_chroma }}
+          tonic_chroma_url: http://127.0.0.1:8000
+          tonic_retrieval_backend: chroma
+          intent_pair: ${{ steps.parse.outputs.intent_pair }}
+          hydration_user_query: ${{ steps.parse.outputs.hydration_user_query }}
+          hydration_question_mode: ${{ steps.parse.outputs.hydration_question_mode }}
+
+      - name: Log Tonic action outputs
+        run: |
+          echo "tonic.status=${{ steps.tonic.outputs.status }}"
+          echo "tonic.files_analyzed=${{ steps.tonic.outputs.files_analyzed }}"
+          echo "tonic.conflicted_files=${{ steps.tonic.outputs.conflicted_files }}"
+
+      - name: Upload merge report
+        if: ${{ steps.tonic.outputs.report_path != '' && hashFiles(steps.tonic.outputs.report_path) != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: merge-tonic-report-comment-chroma
+          path: ${{ steps.tonic.outputs.report_path }}

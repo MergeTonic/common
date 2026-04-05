@@ -98,7 +98,13 @@ class AIResponseCacheFacade:
         base = Path(raw_dir or os.path.join(os.getcwd(), ".tonic_agent_cache"))
         return cls(DiskAIResolutionCache(base, ttl), enabled)
 
-    def get_conflict(self, model: str, conflict_file: ConflictFile, conflict: ConflictRegion) -> AIResponse | None:
+    def get_conflict(
+        self,
+        model: str,
+        conflict_file: ConflictFile,
+        conflict: ConflictRegion,
+        hydration_digest: str = "",
+    ) -> AIResponse | None:
         if not self.enabled:
             return None
         key = _hash_parts(
@@ -109,11 +115,17 @@ class AIResponseCacheFacade:
             str(conflict.end_line),
             conflict.left_content,
             conflict.right_content,
+            hydration_digest,
         )
         return self._inner.load(key)
 
     def put_conflict(
-        self, model: str, conflict_file: ConflictFile, conflict: ConflictRegion, r: AIResponse
+        self,
+        model: str,
+        conflict_file: ConflictFile,
+        conflict: ConflictRegion,
+        r: AIResponse,
+        hydration_digest: str = "",
     ) -> None:
         if not self.enabled:
             return
@@ -125,6 +137,7 @@ class AIResponseCacheFacade:
             str(conflict.end_line),
             conflict.left_content,
             conflict.right_content,
+            hydration_digest,
         )
         self._inner.save(key, r)
 

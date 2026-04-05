@@ -260,8 +260,13 @@ def minimal_merge_report(
     base_ref: str = "",
     head_ref: str = "",
     artifacts: list[dict],
+    merge_base_sha: str | None = None,
+    left_ref: str | None = None,
+    right_ref: str | None = None,
+    compare_mode: str | None = None,
+    tonic_repo_profile: dict | None = None,
 ) -> dict:
-    return {
+    out: dict = {
         "schema": "merge-tonic-report",
         "report_version": MERGE_ARTIFACT_VERSION,
         "run_id": run_id,
@@ -272,3 +277,14 @@ def minimal_merge_report(
         "head_ref": head_ref,
         "files": artifacts,
     }
+    if merge_base_sha:
+        out["merge_base_sha"] = merge_base_sha
+    if left_ref:
+        out["left_ref"] = left_ref
+    if right_ref:
+        out["right_ref"] = right_ref
+    if compare_mode:
+        out["compare_mode"] = compare_mode
+    if tonic_repo_profile:
+        out["tonic_repo_profile"] = tonic_repo_profile
+    return out

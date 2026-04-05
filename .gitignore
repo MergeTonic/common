@@ -5,6 +5,9 @@ node_modules/
 # Memory
 memory
 
+# Legacy grep-based prototype (removed from tree; ignore if reintroduced locally)
+ast-grep/
+
 # Build output (if not committed by policy)
 dist/
 **/dist/

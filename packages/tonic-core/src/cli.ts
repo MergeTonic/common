@@ -10,8 +10,10 @@ import {
   mergeSnapshots,
 } from "./mergeUtils";
 import { mergeReportDict, type MergeArtifactJson } from "./cliReport";
+import { runAstGrepHydrateFromArgv } from "./astGrep/command";
 import { gitMain } from "./gitSubcommands";
 import { gitRequireOk } from "./gitExec";
+import { runHydrationPipelineFromArgv } from "./hydration/hydrateCommand";
 import {
   isHelpInvocation,
   isLicenseAccepted,
@@ -32,7 +34,11 @@ function usage(): void {
   merge-tonic apply --file <path> [--write] [--path <logicalPath>] [--sidecar <json>] [--report <json>]
   merge-tonic conflicts [--file <path>|-]   (default: stdin)
   merge-tonic report --left <file> --right <file> [--out <file>] [--path <logicalPath>]
-  merge-tonic git [--repo <dir>] fetch|compare|materialize|from-index|merge|worktree ...
+  merge-tonic git [--repo <dir>] fetch|compare|materialize|from-index|merge|worktree|hydrate-intents ...
+  merge-tonic ast-grep-hydrate | agh  [--repo <dir>] [--out <file>] [--run-out <file>] [--rule|--config|...]
+  merge-tonic hydrate | h  [--repo <dir>] [--out-dir <dir>] [--phase MILESTONE] [--force-prior] [--source-priority default|ast-first|retrieval-first] [--left-intent ...] [--enable-retrieval] [--retrieval-backend memory|chroma] [--vector-cache-path FILE] [--vector-cache-mode off|read|write|readwrite] [--embedding-backend auto|histogram|openai_compatible] [--retrieval-hybrid-regex PAT] [--enable-code-walk-search-agent] [--question-mode off|improver|subquestions] [--prior-run PATH] [ast-grep flags]
+  merge-tonic weave | w  verify|install-hooks|init|doctor|push|pull|replay  [--repo <dir>] ...
+  merge-tonic repo [--repo <dir>] init|fetch|compare|compare-three|hydrate|resolve ...
   merge-tonic github ref create --repo owner/name --ref refs/heads/b --sha <sha>  (needs GITHUB_TOKEN)
   Legacy: first argument may be "merge-tonic", "tonic-merge", or "mt" (ignored).`);
 }
@@ -406,6 +412,20 @@ async function runCli(argv: string[]): Promise<number> {
   if (sub === "git" || sub === "g") {
     const { repo, rest } = stripRepo(argv.slice(1));
     return await gitMain(repo, rest);
+  }
+  if (sub === "ast-grep-hydrate" || sub === "agh") {
+    return runAstGrepHydrateFromArgv(argv.slice(1));
+  }
+  if (sub === "hydrate" || sub === "h") {
+    return await runHydrationPipelineFromArgv(argv.slice(1));
+  }
+  if (sub === "weave" || sub === "w") {
+    const { runWeaveFromArgv } = await import("./weaveCli");
+    return await runWeaveFromArgv(argv.slice(1));
+  }
+  if (sub === "repo") {
+    const { runRepoFromArgv } = await import("./repoSubcommands");
+    return runRepoFromArgv(argv.slice(1));
   }
   usage();
   return 1;

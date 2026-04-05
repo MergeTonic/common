@@ -18,6 +18,8 @@ from tonic.merge_utils import (
     merge_snapshots,
     minimal_merge_report,
 )
+from tonic.repo_cli import cmd_repo
+from tonic.weave_git.weave_cli import build_weave_parser
 
 
 def _norm_lines(s: str) -> list[str]:
@@ -211,7 +213,9 @@ def cmd_apply(args: argparse.Namespace) -> int:
 def cmd_git(args: argparse.Namespace) -> int:
     from tonic.git_cli import (
         cmd_git_compare,
+        cmd_git_compare_three,
         cmd_git_fetch,
+        cmd_git_hydrate_intents,
         cmd_git_materialize,
         cmd_git_merge,
         cmd_git_worktree,
@@ -219,7 +223,8 @@ def cmd_git(args: argparse.Namespace) -> int:
 
     repo = str(Path(args.repo).resolve())
     if args.git_cmd == "fetch":
-        return cmd_git_fetch(repo, args.remote, prune=args.prune)
+        extra_refs = list(getattr(args, "fetch_branch", []) or []) + list(getattr(args, "fetch_ref", []) or [])
+        return cmd_git_fetch(repo, args.remote, prune=args.prune, refs=extra_refs or None)
     if args.git_cmd == "compare":
         return cmd_git_compare(
             repo,
@@ -238,6 +243,38 @@ def cmd_git(args: argparse.Namespace) -> int:
             atomic=not args.no_atomic,
             blame=args.blame,
             blame_max_commits=args.blame_max_commits,
+            weave_merge=getattr(args, "weave_merge", False),
+            hub_prefetch=getattr(args, "hub_prefetch", False),
+            hub_repo_id=getattr(args, "hub_repo_id", "") or "",
+        )
+    if args.git_cmd == "compare-three":
+        hyd = list(getattr(args, "hydrate_after", []) or [])
+        if hyd and hyd[0] == "--":
+            hyd = hyd[1:]
+        return cmd_git_compare_three(
+            repo,
+            remote=args.remote,
+            base_branch=args.base_branch,
+            merge_branch=args.merge_branch,
+            left_ref=args.left_ref,
+            right_ref=args.right_ref,
+            base_ref=getattr(args, "base_ref", None),
+            dry_run=args.dry_run,
+            write=args.write,
+            into_branch=args.into_branch,
+            report_path=args.report,
+            path_filters=list(args.paths or []),
+            swap_stages=args.swap_stages,
+            backup=args.backup,
+            atomic=not args.no_atomic,
+            blame=args.blame,
+            blame_max_commits=args.blame_max_commits,
+            hub_prefetch=getattr(args, "hub_prefetch", False),
+            hub_repo_id=getattr(args, "hub_repo_id", "") or "",
+            write_weave=bool(getattr(args, "write_weave", False)),
+            weave_writeback_mode=getattr(args, "weave_writeback_mode", "text") or "text",
+            weave_driver_strict=not bool(getattr(args, "weave_driver_non_strict", False)),
+            hydrate_after=hyd or None,
         )
     if args.git_cmd in ("materialize", "from-index"):
         return cmd_git_materialize(
@@ -253,6 +290,9 @@ def cmd_git(args: argparse.Namespace) -> int:
         )
     if args.git_cmd == "merge":
         return cmd_git_merge(repo, args.merge_ref, no_commit=args.no_commit)
+    if args.git_cmd == "hydrate-intents":
+        rest = list(getattr(args, "hydrate_intents_rest", []) or [])
+        return cmd_git_hydrate_intents(repo, rest)
     if args.git_cmd == "worktree":
         wt = args.wt_cmd
         return cmd_git_worktree(
@@ -262,6 +302,20 @@ def cmd_git(args: argparse.Namespace) -> int:
             ref=getattr(args, "wt_ref", None),
         )
     return 1
+
+
+def cmd_ast_grep_hydrate(args: argparse.Namespace) -> int:
+    from tonic.ast_grep_hydrate import parse_ast_grep_hydrate_argv, run_ast_grep_hydrate
+
+    rest = list(getattr(args, "agh_rest", []) or [])
+    return run_ast_grep_hydrate(parse_ast_grep_hydrate_argv(rest))
+
+
+def cmd_hydrate(args: argparse.Namespace) -> int:
+    from tonic.hydration_pipeline import cmd_hydrate as run_h
+
+    rest = list(getattr(args, "hydrate_rest", []) or [])
+    return run_h(rest)
 
 
 def cmd_github(args: argparse.Namespace) -> int:
@@ -344,9 +398,106 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p_rep.add_argument("--blame-max-commits", type=int, default=3, dest="blame_max_commits")
     p_rep.set_defaults(func=cmd_report)
 
+    p_agh = sub.add_parser("ast-grep-hydrate", aliases=["agh"], help="Run ast-grep scan → tonic-ast-hydration JSON")
+    p_agh.add_argument("agh_rest", nargs=argparse.REMAINDER, default=[])
+    p_agh.set_defaults(func=cmd_ast_grep_hydrate)
+
+    p_hyd = sub.add_parser("hydrate", aliases=["h"], help="Multi-phase hydration pipeline (intent → conflicts → ast → bundle)")
+    p_hyd.add_argument("hydrate_rest", nargs=argparse.REMAINDER, default=[])
+    p_hyd.set_defaults(func=cmd_hydrate)
+
+    build_weave_parser(sub)
+
+    p_repo = sub.add_parser("repo", help="Repo profile + composite fetch/compare/hydrate")
+    rsub = p_repo.add_subparsers(dest="repo_cmd", required=True)
+
+    r_init = rsub.add_parser("init", help="Ensure .tonic layout and write repo.json")
+    r_init.add_argument("--repo", "-R", default=".")
+    r_init.add_argument("--remote", default=None)
+    r_init.add_argument("--canonical-ref", default=None, dest="canonical_ref")
+    r_init.add_argument("--left-ref", default=None, dest="left_ref")
+    r_init.add_argument("--right-ref", default=None, dest="right_ref")
+    r_init.add_argument("--intent-pair", default=None, dest="intent_pair")
+    r_init.add_argument("--intent-profile", default=None, dest="intent_profile")
+    r_init.add_argument("--hydrate-out-dir", default=None, dest="hydrate_out_dir")
+    r_init.add_argument("--hub-repo-id", default=None, dest="hub_repo_id")
+    r_init.add_argument(
+        "--hub-create",
+        action="store_true",
+        dest="hub_create",
+        help="Create Hub model repo if missing (needs HF_TOKEN); writes .tonic/hf-repo.json",
+    )
+    r_init.add_argument("--hub-private", action="store_true", default=True, dest="hub_private")
+    r_init.add_argument(
+        "--hub-git-remote-name",
+        default="",
+        dest="hub_git_remote_name",
+        help="If set, git remote add/set-url NAME https://huggingface.co/{hub_repo_id}.git",
+    )
+    r_init.add_argument("--git-remote-url", default=None, dest="git_remote_url")
+    r_init.add_argument("--compare-mode", default=None, dest="compare_mode")
+    r_init.add_argument("--fetch", action="store_true", dest="do_fetch")
+    r_init.add_argument("repo_rest", nargs=argparse.REMAINDER, default=[])
+    r_init.set_defaults(func=cmd_repo, repo_cmd="init")
+
+    r_fetch = rsub.add_parser("fetch", help="git fetch using profile refs + optional --branch/--ref")
+    r_fetch.add_argument("--repo", "-R", default=".")
+    r_fetch.add_argument("--remote", default=None)
+    r_fetch.add_argument("repo_rest", nargs=argparse.REMAINDER, default=[])
+    r_fetch.set_defaults(func=cmd_repo, repo_cmd="fetch")
+
+    def _add_repo_compare_flags(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--repo", "-R", default=".")
+        p.add_argument("--remote", "-r", default=None)
+        p.add_argument("--base-branch", "-b", default="main")
+        p.add_argument("--merge-branch", "-m", default=None)
+        p.add_argument("--left-ref", "-l", default=None)
+        p.add_argument("--right-ref", "-t", default=None)
+        p.add_argument("--dry-run", "-d", action="store_true")
+        p.add_argument("--write", "-w", action="store_true")
+        p.add_argument("--into-branch", "-i", default=None)
+        p.add_argument("--report", "-o", default=None)
+        p.add_argument("--paths", "-p", action="append", default=[], dest="paths")
+        p.add_argument("--swap-stages", "-s", action="store_true", dest="swap_stages")
+        p.add_argument("--backup", "-k", action="store_true")
+        p.add_argument("--no-atomic", "-N", action="store_true", dest="no_atomic")
+        p.add_argument("--blame", action="store_true")
+        p.add_argument("--blame-max-commits", type=int, default=3, dest="blame_max_commits")
+        p.add_argument("--weave-merge", action="store_true", dest="weave_merge")
+        p.add_argument("--hub-prefetch", action="store_true", dest="hub_prefetch")
+        p.add_argument("--hub-repo-id", default=None, dest="hub_repo_id")
+
+    r_cmp = rsub.add_parser("compare", aliases=["c"], help="git compare with profile defaults")
+    _add_repo_compare_flags(r_cmp)
+    r_cmp.set_defaults(func=cmd_repo, repo_cmd="compare")
+
+    r_c3 = rsub.add_parser("compare-three", aliases=["c3"], help="git compare-three with profile defaults")
+    _add_repo_compare_flags(r_c3)
+    r_c3.add_argument("--base-ref", default=None, dest="base_ref")
+    r_c3.add_argument("--write-weave", action="store_true", dest="write_weave")
+    r_c3.add_argument(
+        "--weave-writeback-mode",
+        choices=("text", "weave"),
+        default="text",
+        dest="weave_writeback_mode",
+    )
+    r_c3.add_argument("--weave-driver-non-strict", action="store_true", dest="weave_driver_non_strict")
+    r_c3.add_argument("--hydrate-after", nargs=argparse.REMAINDER, default=[], dest="hydrate_after")
+    r_c3.set_defaults(func=cmd_repo, repo_cmd="compare-three")
+
+    r_hyd = rsub.add_parser("hydrate", aliases=["h"], help="hydrate with profile defaults")
+    r_hyd.add_argument("--repo", "-R", default=".")
+    r_hyd.add_argument("repo_rest", nargs=argparse.REMAINDER, default=[])
+    r_hyd.set_defaults(func=cmd_repo, repo_cmd="hydrate")
+
+    r_res = rsub.add_parser("resolve", help="Classify path | GitHub URL | HF repo id (JSON)")
+    r_res.add_argument("--repo", "-R", default=".")
+    r_res.add_argument("resolve_spec", nargs="?", default="")
+    r_res.set_defaults(func=cmd_repo, repo_cmd="resolve")
+
     p_git = sub.add_parser(
         "git",
-        help="Git repo helpers (fetch, compare, materialize/from-index, merge, worktree)",
+        help="Git repo helpers (fetch, compare, materialize/from-index, merge, worktree, hydrate-intents)",
     )
     p_git.add_argument("--repo", "-R", default=".", help="Path to git repository")
     gsub = p_git.add_subparsers(dest="git_cmd", required=True)
@@ -354,6 +505,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     g_fetch = gsub.add_parser("fetch", help="git fetch")
     g_fetch.add_argument("--remote", "-r", default="origin")
     g_fetch.add_argument("--prune", "-p", action="store_true")
+    g_fetch.add_argument("--branch", "-b", action="append", default=[], dest="fetch_branch")
+    g_fetch.add_argument("--ref", action="append", default=[], dest="fetch_ref")
     g_fetch.set_defaults(func=cmd_git)
 
     g_cmp = gsub.add_parser("compare", help="Tonic-merge diff paths between two refs")
@@ -372,7 +525,57 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     g_cmp.add_argument("--no-atomic", "-N", action="store_true", dest="no_atomic")
     g_cmp.add_argument("--blame", action="store_true")
     g_cmp.add_argument("--blame-max-commits", type=int, default=3, dest="blame_max_commits")
+    g_cmp.add_argument("--weave-merge", action="store_true", dest="weave_merge")
+    g_cmp.add_argument("--hub-prefetch", action="store_true", dest="hub_prefetch")
+    g_cmp.add_argument("--hub-repo-id", default="", dest="hub_repo_id")
     g_cmp.set_defaults(func=cmd_git)
+
+    g_c3 = gsub.add_parser("compare-three", aliases=["c3"], help="Merge-base three-way merge via git merge-file")
+    g_c3.add_argument("--remote", "-r", default="origin")
+    g_c3.add_argument("--base-branch", "-b", default="main")
+    g_c3.add_argument("--merge-branch", "-m", default=None)
+    g_c3.add_argument("--left-ref", "-l", default=None)
+    g_c3.add_argument("--right-ref", "-t", default=None)
+    g_c3.add_argument("--base-ref", default=None, dest="base_ref")
+    g_c3.add_argument("--dry-run", "-d", action="store_true")
+    g_c3.add_argument("--write", "-w", action="store_true")
+    g_c3.add_argument("--into-branch", "-i", default=None)
+    g_c3.add_argument("--report", "-o", default=None)
+    g_c3.add_argument("--paths", "-p", action="append", default=[], dest="paths")
+    g_c3.add_argument("--swap-stages", "-s", action="store_true", dest="swap_stages")
+    g_c3.add_argument("--backup", "-k", action="store_true")
+    g_c3.add_argument("--no-atomic", "-N", action="store_true", dest="no_atomic")
+    g_c3.add_argument("--blame", action="store_true")
+    g_c3.add_argument("--blame-max-commits", type=int, default=3, dest="blame_max_commits")
+    g_c3.add_argument("--hub-prefetch", action="store_true", dest="hub_prefetch")
+    g_c3.add_argument("--hub-repo-id", default="", dest="hub_repo_id")
+    g_c3.add_argument(
+        "--write-weave",
+        action="store_true",
+        dest="write_weave",
+        help="Update .tonic/weave/manifest.json and blobs for compare-three paths (no git commit).",
+    )
+    g_c3.add_argument(
+        "--weave-writeback-mode",
+        choices=("text", "weave"),
+        default="text",
+        dest="weave_writeback_mode",
+        help="text=Mode A (snapshot weave, degraded); weave=merge_states on blobs (strict unless --weave-driver-non-strict).",
+    )
+    g_c3.add_argument(
+        "--weave-driver-non-strict",
+        action="store_true",
+        dest="weave_driver_non_strict",
+        help="Allow degraded fallback when weave compatibility checks fail.",
+    )
+    g_c3.add_argument(
+        "--hydrate-after",
+        nargs=argparse.REMAINDER,
+        default=[],
+        dest="hydrate_after",
+        help="After --write/--write-weave, run merge-tonic hydrate with remaining argv (must be last).",
+    )
+    g_c3.set_defaults(func=cmd_git)
 
     g_mat = gsub.add_parser("materialize", help="Unmerged index → Tonic markers")
     g_mat.add_argument("--dry-run", "-d", action="store_true")
@@ -401,6 +604,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     g_merge.add_argument("--ref", "-R", default="", dest="merge_ref")
     g_merge.add_argument("--no-commit", "-n", action="store_true", dest="no_commit")
     g_merge.set_defaults(func=cmd_git)
+
+    g_hi = gsub.add_parser("hydrate-intents", help="Interactive intent profile or ast-grep passthrough")
+    g_hi.add_argument("hydrate_intents_rest", nargs=argparse.REMAINDER, default=[])
+    g_hi.set_defaults(func=cmd_git)
 
     g_wt = gsub.add_parser("worktree", help="git worktree add | list | remove")
     wt_sub = g_wt.add_subparsers(dest="wt_cmd", required=True)
@@ -453,11 +660,55 @@ def main(argv: list[str] | None = None) -> int:
 
     # Lightweight aliases for commands while avoiding accidental remaps in values.
     if argv:
-        top_alias = {"m": "merge", "a": "apply", "c": "conflicts", "r": "report", "g": "git"}
+        top_alias = {
+            "m": "merge",
+            "a": "apply",
+            "c": "conflicts",
+            "r": "report",
+            "g": "git",
+            "w": "weave",
+        }
         argv[0] = top_alias.get(argv[0], argv[0])
         if argv[0] == "git" and len(argv) >= 2:
-            git_alias = {"f": "fetch", "mat": "materialize", "fi": "from-index", "m": "merge", "wt": "worktree"}
+            git_alias = {
+                "f": "fetch",
+                "mat": "materialize",
+                "fi": "from-index",
+                "m": "merge",
+                "wt": "worktree",
+                "hi": "hydrate-intents",
+                "c3": "compare-three",
+            }
             argv[1] = git_alias.get(argv[1], argv[1])
+        if argv[0] in ("ast-grep-hydrate", "agh"):
+            from tonic.ast_grep_hydrate import parse_ast_grep_hydrate_argv, run_ast_grep_hydrate
+
+            if len(argv) >= 2 and argv[1] in ("-h", "--help", "help"):
+                print("Usage: merge-tonic ast-grep-hydrate [--repo DIR] [--out PATH] [--run-out PATH] ...")
+                return 0
+            return run_ast_grep_hydrate(parse_ast_grep_hydrate_argv(argv[1:]))
+        if argv[0] in ("hydrate", "h"):
+            from tonic.hydration_pipeline import cmd_hydrate
+
+            if len(argv) >= 2 and argv[1] in ("-h", "--help", "help"):
+                print("Usage: merge-tonic hydrate [--repo DIR] [--out-dir DIR] [--left-intent S] ... [-- -- ast flags]")
+                return 0
+            return cmd_hydrate(argv[1:])
+        if argv[0] == "git" and len(argv) >= 2 and argv[1] in ("hydrate-intents", "hi"):
+            from tonic.git_cli import cmd_git_hydrate_intents
+
+            ga = argv[2:]
+            repo = str(Path(".").resolve())
+            rest: list[str] = []
+            i = 0
+            while i < len(ga):
+                if ga[i] in ("--repo", "-R") and i + 1 < len(ga):
+                    repo = str(Path(ga[i + 1]).resolve())
+                    i += 2
+                else:
+                    rest.append(ga[i])
+                    i += 1
+            return cmd_git_hydrate_intents(repo, rest)
     args = parser.parse_args(argv)
     if getattr(args, "command", "") == "git" and getattr(args, "git_cmd", "") == "merge":
         if not args.merge_ref:

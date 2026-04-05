@@ -18,6 +18,21 @@ export {
 } from "./conflicts";
 export { serializeState, deserializeState, type StateRow } from "./state";
 export {
+  buildVisibleWeaveMaps,
+  inspectRowsJson,
+  splitWeaveIndexAfterVisible,
+  visibleLineCount,
+  visibleRangeToWeaveIndices,
+  WeaveIntrospectError,
+  type WeaveRowView,
+} from "./weaveIntrospect";
+export {
+  extractWeaveRows,
+  spliceWeaveRows,
+  WeaveExtractError,
+  WeaveSpliceError,
+} from "./weaveSlice";
+export {
   parseTonicConflicts,
   parseTonicConflictsWithDiagnostics,
   conflictSummary,
@@ -63,6 +78,21 @@ export {
   type IntentProfileV1,
 } from "./intentInteractive";
 export {
+  EXIT_AST_GREP_MISSING,
+  EXIT_INVALID_ARGS,
+  EXIT_OK,
+  EXIT_PARTIAL,
+  EXIT_SCAN_FAILED,
+  type AstGrepCliOptions,
+  type AstHydrationArtifactV1,
+  type HydrationRunArtifactV1,
+  type NormalizedMatch,
+} from "./astGrep/types";
+export { parseAstGrepHydrateArgv, runAstGrepHydrate, runAstGrepHydrateFromArgv } from "./astGrep/command";
+export { runAstGrepScan } from "./astGrep/runner";
+export { runHydrationPipeline, type HydrateCliOptions } from "./hydration/pipeline";
+export { parseHydrateArgv, runHydrationPipelineFromArgv } from "./hydration/hydrateCommand";
+export {
   mergeSnapshots,
   annotatedToConflictFile,
   conflictRegionsToAnnotatedLines,
@@ -76,3 +106,24 @@ export {
   type ConflictRegion,
   type TonicAuthorIntentHydration,
 } from "./mergeUtils";
+export type { PathManifestEntry, TonicGitManifest } from "./weaveGit/types";
+export {
+  parseManifestJson,
+  serializeManifestJson,
+  pathEntryForFile,
+} from "./weaveGit/manifest";
+export { normalizeLf, sha256HexUtf8, sha256HexBytes } from "./weaveGit/hashutil";
+export {
+  applyLfsPointerChecks,
+  verifyManifest,
+  verifyReportDict,
+  verifyReportJson,
+  verifyReportStatus,
+  verifyStaged,
+  weaveBlobPath,
+  DEFAULT_WEAVE_ROOT,
+  type VerifyResult,
+  type VerifyCheck,
+  type VerifyError,
+} from "./weaveGit/verify";
+export { findLfsPointersUnder, isLfsPointer } from "./weaveGit/lfs";

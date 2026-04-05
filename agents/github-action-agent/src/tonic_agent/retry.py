@@ -1,4 +1,4 @@
-"""Retry wrapper for AI providers (TONIC_AGENT_* / RIZZLER_* parity)."""
+"""Retry wrapper for AI providers (TONIC_AGENT_* env tuning)."""
 
 from __future__ import annotations
 
@@ -11,22 +11,20 @@ from .ai_provider import AIProvider, AIProviderConfig, AIResponse
 from .models import ConflictFile, ConflictRegion
 
 
-def _env_u32(name_m: str, name_r: str, default: int) -> int:
-    for n in (name_m, name_r):
-        raw = os.environ.get(n)
-        if raw and raw.isdigit():
-            return int(raw)
+def _env_u32(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw and raw.isdigit():
+        return int(raw)
     return default
 
 
-def _env_f(name_m: str, name_r: str, default: float) -> float:
-    for n in (name_m, name_r):
-        raw = os.environ.get(n)
-        if raw:
-            try:
-                return float(raw)
-            except ValueError:
-                pass
+def _env_f(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
     return default
 
 
@@ -41,19 +39,11 @@ class RetryConfig:
     @classmethod
     def from_env(cls) -> RetryConfig:
         return cls(
-            max_retries=_env_u32("TONIC_AGENT_MAX_RETRIES", "RIZZLER_MAX_RETRIES", 3),
-            initial_backoff_ms=_env_u32(
-                "TONIC_AGENT_INITIAL_BACKOFF_MS", "RIZZLER_INITIAL_BACKOFF_MS", 1000
-            ),
-            max_backoff_ms=_env_u32(
-                "TONIC_AGENT_MAX_BACKOFF_MS", "RIZZLER_MAX_BACKOFF_MS", 30000
-            ),
-            backoff_multiplier=_env_f(
-                "TONIC_AGENT_BACKOFF_MULTIPLIER", "RIZZLER_BACKOFF_MULTIPLIER", 2.0
-            ),
-            jitter_factor=_env_f(
-                "TONIC_AGENT_JITTER_FACTOR", "RIZZLER_JITTER_FACTOR", 0.1
-            ),
+            max_retries=_env_u32("TONIC_AGENT_MAX_RETRIES", 3),
+            initial_backoff_ms=_env_u32("TONIC_AGENT_INITIAL_BACKOFF_MS", 1000),
+            max_backoff_ms=_env_u32("TONIC_AGENT_MAX_BACKOFF_MS", 30000),
+            backoff_multiplier=_env_f("TONIC_AGENT_BACKOFF_MULTIPLIER", 2.0),
+            jitter_factor=_env_f("TONIC_AGENT_JITTER_FACTOR", 0.1),
         )
 
     def calculate_backoff_time(self, retry_attempt: int) -> float:
@@ -101,11 +91,15 @@ class RetryableProvider:
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
+        *,
+        hydration_appendix: str = "",
     ) -> AIResponse:
         last_err: Exception | None = None
         for attempt in range(self._config.max_retries + 1):
             try:
-                return self._inner.resolve_conflict(conflict_file, conflict)
+                return self._inner.resolve_conflict(
+                    conflict_file, conflict, hydration_appendix=hydration_appendix
+                )
             except Exception as e:
                 last_err = e
                 msg = str(e)

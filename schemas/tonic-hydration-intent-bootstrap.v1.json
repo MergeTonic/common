@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-hydration-intent-bootstrap.v1.json",
+  "title": "TonicHydrationIntentBootstrapV1",
+  "type": "object",
+  "required": ["schema", "version", "left_intent", "right_intent", "sources"],
+  "properties": {
+    "schema": { "const": "tonic-hydration-intent-bootstrap" },
+    "version": { "type": "string", "const": "1" },
+    "left_intent": { "type": "string" },
+    "right_intent": { "type": "string" },
+    "sources": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "e.g. left: cli_flag, right: profile_file"
+    },
+    "prompt_template_id": { "type": "string" },
+    "rendered_excerpt": { "type": "string" }
+  },
+  "additionalProperties": false
+}

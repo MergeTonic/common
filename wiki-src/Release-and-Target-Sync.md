@@ -1,14 +1,14 @@
 # Release and Target Sync
 
-This page summarizes release orchestration and target-repo propagation from `release-targets.json`.
+This page summarizes release orchestration and target-repo propagation from **`release-targets.json`** at the monorepo root.
 
 ## Key points
 
-- `release-targets.json` is the routing source of truth.
-- `target-repo-templates/<target-id>/` overlays are target-owned and applied during sync.
-- Release orchestrator supports `monorepo-only`, `target-sync-pr`, and `full-release`.
-- Wiki publish is independent from target sync and should be monitored separately.
+- **`release-targets.json`** is the routing source of truth for which downstream repos receive overlays.
+- **`target-repo-templates/<target-id>/`** holds target-owned template overlays applied during sync.
+- The **release orchestrator** workflow (see **`.github/workflows/release-orchestrator.yml`**) supports modes such as **`monorepo-only`**, **`target-sync-pr`**, and **`full-release`** (exact labels follow the workflow inputs).
+- Wiki publish is independent from target sync; monitor wiki automation separately.
 
-## Operations guide
+## Operator detail
 
-Detailed operator guidance is maintained in `docs/mono-to-target-release.md`.
+For step-by-step release operations, read **`.github/workflows/release-orchestrator.yml`** and **`scripts/release/`** (for example **`collect_versions.py`**, **`validate_release_contracts.py`**) in this repository. There is no separate `docs/mono-to-target-release.md` in-tree; this wiki page and the workflow are the references.

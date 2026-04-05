@@ -1,0 +1,33 @@
+#!/bin/sh
+# Extension bundle freshness when inputs that affect the esbuild output change.
+# Enable once per clone: git config --local core.hooksPath .githooks
+# Or run: sh scripts/setup-git-hooks.sh
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root" || exit 1
+
+staged=$(git diff --cached --name-only)
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+need_check=false
+for f in $staged; do
+  case "$f" in
+    packages/tonic-core/src/*|extensions/tonic-conflict-resolver/src/*|extensions/tonic-conflict-resolver/package.json|package.json|package-lock.json|scripts/run-esbuild.cjs|scripts/run-tsc.cjs|scripts/verify-extension-bundle.cjs|scripts/verify-extension-bundle-fresh.cjs)
+      need_check=true
+      break
+      ;;
+  esac
+done
+
+if ! $need_check; then
+  exit 0
+fi
+
+if ! node "$repo_root/scripts/verify-extension-bundle.cjs"; then
+  exit 1
+fi
+if ! node "$repo_root/scripts/verify-extension-bundle-fresh.cjs"; then
+  exit 1
+fi

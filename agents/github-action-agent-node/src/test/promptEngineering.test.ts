@@ -46,10 +46,8 @@ test("buildSystemPromptBody enhanced mentions semantic", () => {
 
 test("promptTemplateFromEnv default enhanced when unset", () => {
   const tonic = process.env.TONIC_AGENT_PROMPT_TEMPLATE;
-  const riz = process.env.RIZZLER_PROMPT_TEMPLATE;
   try {
     delete process.env.TONIC_AGENT_PROMPT_TEMPLATE;
-    delete process.env.RIZZLER_PROMPT_TEMPLATE;
     assert.equal(promptTemplateFromEnv(), "enhanced");
     process.env.TONIC_AGENT_PROMPT_TEMPLATE = "default";
     assert.equal(promptTemplateFromEnv(), "default");
@@ -60,11 +58,6 @@ test("promptTemplateFromEnv default enhanced when unset", () => {
       delete process.env.TONIC_AGENT_PROMPT_TEMPLATE;
     } else {
       process.env.TONIC_AGENT_PROMPT_TEMPLATE = tonic;
-    }
-    if (riz === undefined) {
-      delete process.env.RIZZLER_PROMPT_TEMPLATE;
-    } else {
-      process.env.RIZZLER_PROMPT_TEMPLATE = riz;
     }
   }
 });

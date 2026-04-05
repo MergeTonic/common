@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-ast-hydration.v1.json",
+  "title": "TonicAstHydrationV1",
+  "type": "object",
+  "required": ["schema", "version", "tool", "repo_root", "matches"],
+  "properties": {
+    "schema": { "const": "tonic-ast-hydration" },
+    "version": { "type": "string", "const": "1" },
+    "tool": { "type": "string", "description": "Tool name, e.g. ast-grep" },
+    "tool_version": { "type": "string", "description": "Version string from sg --version when available" },
+    "repo_root": { "type": "string", "description": "Absolute or normalized repo root (POSIX paths preferred)" },
+    "scan_scope": { "type": "string", "description": "e.g. changed-only, full" },
+    "ruleset": { "type": "string", "description": "Ruleset id or path" },
+    "languages": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "ast-grep language aliases used"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "match_count": { "type": "integer" },
+        "files_with_matches": { "type": "integer" },
+        "truncated": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "rule_id"],
+        "properties": {
+          "rule_id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+          "language": { "type": "string" },
+          "path": { "type": "string", "description": "Repo-relative path, forward slashes" },
+          "start": {
+            "type": "object",
+            "properties": {
+              "line": { "type": "integer", "minimum": 1 },
+              "column": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          },
+          "end": {
+            "type": "object",
+            "properties": {
+              "line": { "type": "integer", "minimum": 1 },
+              "column": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          },
+          "message": { "type": "string" },
+          "meta": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

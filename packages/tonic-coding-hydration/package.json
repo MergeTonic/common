@@ -1,0 +1,19 @@
+{
+  "name": "@mergetonic/coding-hydration",
+  "version": "0.1.0",
+  "description": "Retrieval / vector helpers for Merge Tonic hydration (Chroma, memory index, ast-aware ranking)",
+  "license": "GPL-2.0-only",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "node ../../scripts/run-tsc.cjs -p .",
+    "test": "npm run build && node --test dist/test/placeholder.test.js dist/test/astGrepChunker.test.js dist/test/attachAstMetadata.test.js dist/test/memorySearchTools.test.js dist/test/embeddingProvider.test.js dist/test/hfInferenceEmbeddingProvider.test.js dist/test/chromaVectorIndex.test.js dist/test/retrievalHybridStage.test.js dist/test/indexerE2E.test.js dist/test/memoryVectorSnapshot.test.js dist/test/agent/codeSearchLoop/runCodeSearchAgentTurns.test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -7,6 +7,9 @@ on:
       - "packages/tonic-core/**"
       - "package.json"
       - "package-lock.json"
+      - "scripts/verify-extension-bundle.cjs"
+      - "scripts/verify-extension-bundle-fresh.cjs"
+      - ".githooks/**"
       - ".github/workflows/ci-extension.yml"
 
 jobs:
@@ -23,6 +26,8 @@ jobs:
         run: npm run build -w @mergetonic/core
       - name: Compile extension (bundle)
         run: npm run compile -w merge-conflict-resolver
+      - name: Verify extension bundle matches commit (sourcemap + no drift)
+        run: node scripts/verify-extension-bundle-fresh.cjs
       - name: Test extension
         run: npm run test -w merge-conflict-resolver
       - name: vsce package dry-run

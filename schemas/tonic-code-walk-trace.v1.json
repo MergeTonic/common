@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-code-walk-trace.v1.json",
+  "title": "TonicCodeWalkTraceV1",
+  "type": "object",
+  "required": ["schema", "version", "steps"],
+  "properties": {
+    "schema": { "const": "tonic-code-walk-trace" },
+    "version": { "type": "string", "const": "1" },
+    "plan": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Step kind: batch_context (deterministic batch), llm_reflection / llm_summary (LLM), semantic_query, regex_search, symbol_search, ast_grep_scan (code-search loop), code_search_agent (orchestration), done, llm_error, etc.",
+            "examples": [
+              "batch_context",
+              "semantic_query",
+              "regex_search",
+              "symbol_search",
+              "ast_grep_scan",
+              "llm_summary",
+              "code_search_agent"
+            ]
+          },
+          "outcome": {
+            "type": "object",
+            "properties": {
+              "chunks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "filePath": { "type": "string" },
+                    "snippet": { "type": "string" },
+                    "symbol": { "type": "string" },
+                    "relevance": { "type": "number" }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "insights": { "type": "array", "items": { "type": "string" } }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

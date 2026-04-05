@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-repo-profile.v1.json",
+  "title": "TonicRepoProfileV1",
+  "type": "object",
+  "required": ["schema", "version", "remote"],
+  "properties": {
+    "schema": { "const": "tonic-repo-profile" },
+    "version": { "type": "string", "const": "1" },
+    "remote": { "type": "string", "description": "Default git remote name (e.g. origin)" },
+    "canonical_ref": {
+      "type": "string",
+      "description": "Optional merge-base / documentation ref; used as default --base-ref for compare-three when set"
+    },
+    "left_ref": { "type": "string", "description": "Default left ref for compare / fetch" },
+    "right_ref": { "type": "string", "description": "Default right ref for compare / fetch" },
+    "intent_pair": {
+      "type": "string",
+      "description": "Optional intent pair string (same convention as --intent-pair on git compare)"
+    },
+    "intent_profile": {
+      "type": "string",
+      "description": "Path to intent profile JSON, relative to repo root or absolute"
+    },
+    "hydrate_out_dir": {
+      "type": "string",
+      "description": "Default output directory for merge-tonic hydrate"
+    },
+    "git_remote_url": {
+      "type": "string",
+      "description": "Optional Git remote URL (https or git@) for tooling / documentation"
+    },
+    "hub_repo_id": {
+      "type": "string",
+      "description": "Optional Hugging Face model repo id for weave blob prefetch/push"
+    },
+    "hub_default_dag": {
+      "type": "boolean",
+      "description": "When true, prefer Hub as default weave CAS / index layer when online"
+    },
+    "replay_trace_source": {
+      "type": "string",
+      "enum": ["local", "hub", "auto"],
+      "description": "Where weave replay resolves CTRD/steps when not passed explicitly"
+    },
+    "hub_index_path": {
+      "type": "string",
+      "description": "Optional override path for Hub weave index JSON (default .tonic/hub/weave-index.v1.json on Hub)"
+    },
+    "compare_mode": {
+      "type": "string",
+      "enum": ["snapshot", "weave"],
+      "description": "Default compare mode: text snapshot merge vs weave merge when blobs exist"
+    }
+  },
+  "additionalProperties": true
+}
