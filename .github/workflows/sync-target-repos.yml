@@ -37,10 +37,10 @@ on:
         required: true
         default: main
       dry_run:
-        description: Run without pushing target repos
+        description: "true = clone/commit locally only (no push / no PR). false = write to targets (push or open PR per sync_mode)."
         required: true
         type: boolean
-        default: true
+        default: false
       sync_mode:
         description: direct-push or pr-only
         required: true
@@ -231,6 +231,12 @@ jobs:
               f"- status: `{d.get('status', '')}`",
               f"- changed: `{d.get('changed', '')}`",
           ]
+          if d.get("status") == "dry_run":
+              lines.append(
+                  "- **No push or PR** — this was a dry run. "
+                  "Re-run **Sync Target Repositories** with workflow input **dry_run** set to **false** "
+                  "to update downstream repositories."
+              )
           if d.get("branch"):
               lines.append(f"- branch: `{d['branch']}`")
           if d.get("pr_url"):

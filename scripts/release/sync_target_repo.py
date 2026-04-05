@@ -138,11 +138,13 @@ def main() -> int:
 
     managed_paths = _split_csv(args.managed_paths)
     preserve_paths = _split_csv(args.preserve_paths)
-    # release-targets historically used source_dir ".github" with managed_paths [".github"], which
-    # would resolve to .github/.github (missing). Treat as "copy repo .github → target .github".
-    if managed_paths == [".github"] and source.name == ".github":
+    # Org profile repo layout: target has files under ./.github/, while source_dir is monorepo's
+    # ".github" directory. Paths in managed_paths are relative to repo root, so use repo root as
+    # source and managed_paths [".github"] (not .github/.github, which does not exist).
+    if source.name == ".github" and (not managed_paths or managed_paths == [".github"]):
         source = source.parent
-    if not managed_paths:
+        managed_paths = [".github"]
+    elif not managed_paths:
         managed_paths = [item.name for item in source.iterdir()]
     if ".git" not in preserve_paths:
         preserve_paths.append(".git")
