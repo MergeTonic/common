@@ -14,6 +14,17 @@ def _run(cmd: list[str], cwd: Path | None = None, capture: bool = False) -> str:
     return ""
 
 
+def _has_any_commit(checkout_dir: Path) -> bool:
+    """False for a freshly cloned empty GitHub repo (no commits yet)."""
+    r = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=str(checkout_dir),
+        capture_output=True,
+        text=True,
+    )
+    return r.returncode == 0
+
+
 def _split_csv(items: str) -> list[str]:
     if not items.strip():
         return []
@@ -97,8 +108,14 @@ def main() -> int:
         shutil.rmtree(checkout_dir)
 
     _run(["git", "clone", f"https://github.com/{args.repo}.git", str(checkout_dir)])
-    _run(["git", "checkout", args.target_branch], cwd=checkout_dir)
     _run(["git", "fetch", "origin"], cwd=checkout_dir)
+    if _has_any_commit(checkout_dir):
+        _run(["git", "checkout", args.target_branch], cwd=checkout_dir)
+    else:
+        # Empty target: no remote branches yet — create local base branch for first commit.
+        _run(["git", "checkout", "-b", args.target_branch], cwd=checkout_dir)
+
+    empty_before_sync = not _has_any_commit(checkout_dir)
 
     managed_paths = _split_csv(args.managed_paths)
     preserve_paths = _split_csv(args.preserve_paths)
@@ -147,7 +164,19 @@ def main() -> int:
 
     _run(["git", "commit", "-m", args.commit_message], cwd=checkout_dir)
     commit_sha = _run(["git", "rev-parse", "HEAD"], cwd=checkout_dir, capture=True)
+    # Open PRs need the base branch on the remote; empty repos have no remote branches yet.
+    pr_only_effective = bool(args.pr_only) and not empty_before_sync
+    pr_fallback_warning = ""
+    if args.pr_only and empty_before_sync:
+        pr_fallback_warning = (
+            "empty target repository: pr-only requires a base branch on the remote; "
+            "using direct-push for this run to create it"
+        )
+
     if args.dry_run:
+        warnings: list[str] = []
+        if pr_fallback_warning:
+            warnings.append(pr_fallback_warning)
         _write_result(
             args.result_json,
             {
@@ -158,12 +187,12 @@ def main() -> int:
                 "pr_url": "",
                 "commit": commit_sha,
                 "skipped_reason": "",
-                "warnings": [],
+                "warnings": warnings,
             },
         )
         return 0
 
-    if args.pr_only:
+    if pr_only_effective:
         target_slug = args.target_id or source.name
         short_sha = _get_short_sha()
         branch_prefix = f"sync/{target_slug}/"
@@ -227,6 +256,9 @@ def main() -> int:
                 capture=True,
             )
             status = "pr_created"
+        warnings: list[str] = []
+        if pr_fallback_warning:
+            warnings.append(pr_fallback_warning)
         _write_result(
             args.result_json,
             {
@@ -238,12 +270,15 @@ def main() -> int:
                 "commit": commit_sha,
                 "branch": branch_name,
                 "skipped_reason": "",
-                "warnings": [],
+                "warnings": warnings,
             },
         )
         return 0
 
-    _run(["git", "push", "origin", args.target_branch], cwd=checkout_dir)
+    _run(["git", "push", "-u", "origin", args.target_branch], cwd=checkout_dir)
+    direct_warnings: list[str] = []
+    if pr_fallback_warning:
+        direct_warnings.append(pr_fallback_warning)
     _write_result(
         args.result_json,
         {
@@ -254,7 +289,7 @@ def main() -> int:
             "pr_url": "",
             "commit": commit_sha,
             "skipped_reason": "",
-            "warnings": [],
+            "warnings": direct_warnings,
         },
     )
     return 0
