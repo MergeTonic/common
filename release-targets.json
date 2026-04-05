@@ -159,7 +159,7 @@
     },
     {
       "id": ".github",
-      "repo": "merge-tonic/.github",
+      "repo": "MergeTonic/.github",
       "component": "org_community",
       "paths": [
         ".github/**",

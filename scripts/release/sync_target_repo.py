@@ -138,6 +138,10 @@ def main() -> int:
 
     managed_paths = _split_csv(args.managed_paths)
     preserve_paths = _split_csv(args.preserve_paths)
+    # release-targets historically used source_dir ".github" with managed_paths [".github"], which
+    # would resolve to .github/.github (missing). Treat as "copy repo .github → target .github".
+    if managed_paths == [".github"] and source.name == ".github":
+        source = source.parent
     if not managed_paths:
         managed_paths = [item.name for item in source.iterdir()]
     if ".git" not in preserve_paths:
@@ -156,9 +160,8 @@ def main() -> int:
             for item in template_dir.iterdir():
                 dst = checkout_dir / item.name
                 if item.is_dir():
-                    if dst.exists():
-                        shutil.rmtree(dst)
-                    shutil.copytree(item, dst)
+                    # Merge into existing trees (e.g. keep monorepo .github/workflows, add template files).
+                    shutil.copytree(item, dst, dirs_exist_ok=True)
                 else:
                     shutil.copy2(item, dst)
 

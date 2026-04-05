@@ -140,19 +140,20 @@ def main() -> int:
             continue
 
         flags = _release_flags(target.get("release_types", []))
-        selected.append(
-            {
-                "id": target_id,
-                "repo": target["repo"],
-                "component": target["component"],
-                "paths": patterns,
-                "release_types": target.get("release_types", []),
-                "source_dir": target.get("source_dir", ""),
-                "template_dir": target.get("template_dir", ""),
-                "version_key": target.get("version_key", ""),
-                **flags,
-            }
-        )
+        entry: dict = {
+            "id": target_id,
+            "repo": target["repo"],
+            "component": target["component"],
+            "paths": patterns,
+            "release_types": target.get("release_types", []),
+            "source_dir": target.get("source_dir", ""),
+            "template_dir": target.get("template_dir", ""),
+            "version_key": target.get("version_key", ""),
+            **flags,
+        }
+        if isinstance(target.get("sync_policy"), dict):
+            entry["sync_policy"] = target["sync_policy"]
+        selected.append(entry)
 
     result = {
         "changed_files": changed,
