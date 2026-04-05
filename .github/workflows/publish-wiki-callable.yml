@@ -1,0 +1,62 @@
+name: Publish Wiki (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        description: If true, run checks and publish logic without pushing to the wiki remote
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Wiki bootstrap preflight
+        run: python scripts/docs/wiki_preflight.py --repo "${{ github.repository }}"
+      - name: Normalize wiki links (check mode)
+        run: python scripts/docs/normalize_wiki_links.py --check
+      - name: Validate wiki rendering
+        run: python scripts/docs/validate_wiki_rendering.py
+      - name: Publish wiki content
+        env:
+          WIKI_URL: "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git"
+        run: |
+          DRY=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+          fi
+          python scripts/docs/publish_wiki.py \
+            --source-dir wiki-src \
+            --wiki-url "${WIKI_URL}" \
+            --commit-message "docs(wiki): sync from ${GITHUB_SHA}" \
+            ${DRY}
+      - name: Generate diagnostics artifact
+        run: python scripts/docs/wiki_publish_diagnostics.py --output wiki-publish-diagnostics.json
+      - name: Upload publish diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiki-publish-diagnostics
+          path: wiki-publish-diagnostics.json
+      - name: Write workflow summary
+        run: |
+          {
+            echo "## Wiki publish summary"
+            echo ""
+            echo "- Repo: ${{ github.repository }}"
+            echo "- SHA: ${GITHUB_SHA}"
+            echo "- Dry run: ${{ inputs.dry_run }}"
+            echo "- Diagnostics artifact: \`wiki-publish-diagnostics\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
