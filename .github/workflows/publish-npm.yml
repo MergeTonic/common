@@ -24,9 +24,24 @@ jobs:
       base_ref: ${{ inputs.base_ref }}
       head_ref: ${{ inputs.head_ref }}
 
+  test:
+    needs: detect
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "tsmt"'') }}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
+      - run: npm publish -w @mergetonic/core --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "tsmt"') && inputs.publish_npm == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "tsmt"'') && inputs.publish_npm == true && github.ref == ''refs/heads/main'' && github.repository == ''mergetonic/common'' }}'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,20 +51,5 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
-      - run: npm ci
-      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
-      - run: npm publish -w @mergetonic/core --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  test:
-    needs: detect
-    if: contains(needs.detect.outputs.matrix_json, '"id": "tsmt"')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "20"
       - run: npm ci
       - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave && npm run test -w @mergetonic/core
