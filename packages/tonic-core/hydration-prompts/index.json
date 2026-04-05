@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "description": "Maps prompt_template_id to source markdown under repo prompts/hydration/ (see scripts/generate_prompt_bundle.py). Packaged bodies live in embed.json.",
+  "by_id": {
+    "hydration.intent_bootstrap": "intent-bootstrap-user.md",
+    "hydration.question_improver": "question-improver.md",
+    "hydration.question_improver_system": "question-improver-system.md",
+    "hydration.subquestion_generator": "subquestion-generator.md",
+    "hydration.subquestion_generator_system": "subquestion-generator-system.md",
+    "hydration.intent_improver_post_retrieval": "intent-improver-post-retrieval.md",
+    "hydration.intent_improver_post_retrieval_system": "intent-improver-post-retrieval-system.md"
+  }
+}

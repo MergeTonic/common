@@ -1,0 +1,42 @@
+{
+  "schema": "tonic-repo-cli-argv-manifest-v1",
+  "version": "1",
+  "repo_subcommands": [
+    {
+      "name": "init",
+      "argv": ["repo", "init", "--repo", ".", "--remote", "origin", "--fetch"],
+      "python_module": "tonic.repo_cli",
+      "typescript_entry": "runRepoFromArgv"
+    },
+    {
+      "name": "fetch",
+      "argv": ["repo", "fetch", "--repo", "."],
+      "python_module": "tonic.repo_cli",
+      "typescript_entry": "runRepoFromArgv"
+    },
+    {
+      "name": "compare",
+      "argv": ["repo", "compare", "--repo", ".", "--merge-branch", ""],
+      "python_module": "tonic.repo_cli",
+      "typescript_entry": "runRepoFromArgv"
+    },
+    {
+      "name": "compare-three",
+      "argv": ["repo", "compare-three", "--repo", ".", "--merge-branch", ""],
+      "python_module": "tonic.repo_cli",
+      "typescript_entry": "runRepoFromArgv"
+    },
+    {
+      "name": "hydrate",
+      "argv": ["repo", "hydrate", "--repo", "."],
+      "python_module": "tonic.repo_cli",
+      "typescript_entry": "runRepoFromArgv"
+    },
+    {
+      "name": "resolve",
+      "argv": ["repo", "resolve", "--repo", ".", "org/model"],
+      "python_module": "tonic.repo_cli",
+      "typescript_entry": "runRepoFromArgv"
+    }
+  ]
+}

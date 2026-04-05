@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .ai_provider import AIProvider, AIProviderConfig, AIResponse
 from .cache import AIResponseCacheFacade
+from .merge_llm_hydration_context import hydration_context_digest
 from .models import ConflictFile, ConflictRegion
 
 
@@ -25,13 +26,19 @@ class CachingAIProvider:
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
+        *,
+        hydration_appendix: str = "",
     ) -> AIResponse:
         model = self._inner.config().model
-        hit = self._cache.get_conflict(model, conflict_file, conflict)
+        appendix = (hydration_appendix or "").strip()
+        digest = hydration_context_digest(appendix) if appendix else ""
+        hit = self._cache.get_conflict(model, conflict_file, conflict, digest)
         if hit is not None:
             return hit
-        r = self._inner.resolve_conflict(conflict_file, conflict)
-        self._cache.put_conflict(model, conflict_file, conflict, r)
+        r = self._inner.resolve_conflict(
+            conflict_file, conflict, hydration_appendix=hydration_appendix
+        )
+        self._cache.put_conflict(model, conflict_file, conflict, r, digest)
         return r
 
     def resolve_file(self, conflict_file: ConflictFile) -> AIResponse:

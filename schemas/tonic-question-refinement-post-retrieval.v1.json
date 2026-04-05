@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-question-refinement-post-retrieval.v1.json",
+  "title": "TonicQuestionRefinementPostRetrievalV1",
+  "type": "object",
+  "required": ["schema", "version", "mode"],
+  "properties": {
+    "schema": { "const": "tonic-question-refinement-post-retrieval" },
+    "version": { "type": "string", "const": "1" },
+    "mode": { "const": "improver" },
+    "refined_left_intent": { "type": "string" },
+    "refined_right_intent": { "type": "string" },
+    "merge_goals": { "type": "array", "items": { "type": "string" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "model_id": { "type": "string" },
+    "prompt_template_ids": { "type": "array", "items": { "type": "string" } },
+    "context_digest_sha256": { "type": "string" }
+  },
+  "additionalProperties": true
+}

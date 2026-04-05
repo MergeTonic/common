@@ -67,6 +67,8 @@ jobs:
           python-version: "3.12"
       - name: Validate release contracts and topology
         run: python scripts/release/validate_release_contracts.py
+      - name: Check prompt bundle / hydration embed sync
+        run: python scripts/generate_prompt_bundle.py --check
       - name: Validate release matrix generation
         run: python scripts/release/detect_release_matrix.py --base-ref "${{ inputs.base_ref }}" --head-ref "${{ inputs.head_ref }}" > /tmp/matrix.json
       - name: Validate action hydration contracts
@@ -137,6 +139,7 @@ jobs:
           with open(out, "a", encoding="utf-8") as f:
             f.write(f"publish_mtpy={'true' if 'mtpy' in ids else 'false'}\n")
             f.write(f"publish_py_action={'true' if 'py-action' in ids else 'false'}\n")
+            f.write(f"publish_hf_weave_py={'true' if 'hf-weave' in ids else 'false'}\n")
           PY
       - name: Publish selected npm packages
         env:
@@ -151,13 +154,18 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
             f.write(f"PUBLISH_TSMT={'true' if 'tsmt' in ids else 'false'}\n")
             f.write(f"PUBLISH_JS_ACTION={'true' if 'js-action' in ids else 'false'}\n")
+            f.write(f"PUBLISH_HF_WEAVE={'true' if 'hf-weave' in ids else 'false'}\n")
           PY
           if [ "${PUBLISH_TSMT}" = "true" ]; then
-            npm run build -w @mergetonic/core
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
             npm publish -w @mergetonic/core --access public
           fi
+          if [ "${PUBLISH_HF_WEAVE}" = "true" ]; then
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
+            npm publish -w @mergetonic/hf-weave --access public
+          fi
           if [ "${PUBLISH_JS_ACTION}" = "true" ]; then
-            npm run build -w @mergetonic/core -w @mergetonic/github-agent
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core -w @mergetonic/github-agent
             npm publish -w @mergetonic/github-agent --access public
           fi
       - name: Build mergetonic package
@@ -176,6 +184,14 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: agents/github-action-agent/dist/
+      - name: Build mergetonic-hf-weave package
+        if: steps.pypi_targets.outputs.publish_hf_weave_py == 'true'
+        run: python -m build packages/hf-weave-py
+      - name: Publish mergetonic-hf-weave to PyPI (OIDC)
+        if: steps.pypi_targets.outputs.publish_hf_weave_py == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/hf-weave-py/dist/
       - name: Publish VSIX targets
         env:
           MATRIX: ${{ needs.detect.outputs.matrix_json }}
@@ -190,7 +206,7 @@ jobs:
             f.write(f"PUBLISH_VSMT={'true' if 'vsmt' in ids else 'false'}\n")
           PY
           if [ "${PUBLISH_VSMT}" = "true" ]; then
-            npm run build -w @mergetonic/core
+            npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
             npm run compile -w merge-conflict-resolver
             pushd extensions/tonic-conflict-resolver
             npx --yes @vscode/vsce package --no-dependencies

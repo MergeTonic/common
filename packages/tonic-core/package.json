@@ -22,13 +22,19 @@
   },
   "files": [
     "dist",
+    "rules",
+    "hydration-prompts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p .",
-    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/markerLabel.test.js dist/test/cli.test.js",
+    "build": "node ../../scripts/run-tsc.cjs -p .",
+    "test": "npm run build && node --test dist/test/tonic.test.js dist/test/parity.test.js dist/test/regionReconstruct.test.js dist/test/conflictParserDiagnostics.test.js dist/test/gitConflictParser.test.js dist/test/mergeApply.test.js dist/test/markerLabel.test.js dist/test/cli.test.js dist/test/weaveCli.test.js dist/test/weaveManifest.test.js dist/test/weaveMergeDriver.test.js dist/test/repoProfile.test.js dist/test/weaveReplay.test.js dist/test/weaveIntrospect.test.js dist/test/weaveSlice.test.js dist/test/remoteSpec.test.js dist/test/astGrepHydrate.test.js dist/test/conflictGate.test.js dist/test/hydrationPipeline.test.js dist/test/hydrationPromptTemplate.test.js dist/test/intentBootstrap.test.js dist/test/questionRefinement.test.js dist/test/intentHydrationByteGolden.test.js",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@mergetonic/coding-hydration": "file:../tonic-coding-hydration",
+    "@mergetonic/hf-weave": "file:../hf-weave"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

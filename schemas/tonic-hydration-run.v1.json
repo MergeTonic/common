@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-hydration-run.v1.json",
+  "title": "TonicHydrationRunV1",
+  "type": "object",
+  "required": ["schema", "version", "run_id", "status", "exit_code"],
+  "properties": {
+    "schema": { "const": "tonic-hydration-run" },
+    "version": { "type": "string", "const": "1" },
+    "run_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "partial", "failed"] },
+    "exit_code": { "type": "integer" },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inputs": {
+      "allOf": [
+        { "type": "object", "additionalProperties": true },
+        {
+          "type": "object",
+          "properties": {
+            "user_query": { "type": ["string", "null"] },
+            "follow_up": { "type": ["string", "null"] },
+            "prior_run": { "type": ["string", "null"] },
+            "repo": { "type": ["string", "null"] },
+            "out_dir": { "type": ["string", "null"] },
+            "repo_head": { "type": ["string", "null"] },
+            "ruleset_hash": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "timing_ms": { "type": "number" },
+    "ast_evidence_path": { "type": ["string", "null"] },
+    "retrieval_path": { "type": ["string", "null"] },
+    "tags_patch_path": { "type": ["string", "null"] },
+    "code_walk_trace_path": { "type": ["string", "null"] },
+    "intent_hydration_path": { "type": ["string", "null"] },
+    "intent_bootstrap_path": { "type": ["string", "null"] },
+    "question_refinement_path": { "type": ["string", "null"] },
+    "conflict_context_path": { "type": ["string", "null"] },
+    "repo_structure_path": { "type": ["string", "null"] },
+    "prior_run_path": { "type": ["string", "null"] },
+    "pipeline": {
+      "type": "object",
+      "properties": {
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "status"],
+            "properties": {
+              "id": { "type": "string" },
+              "status": { "type": "string", "enum": ["ok", "skipped", "partial", "failed"] },
+              "artifact_path": { "type": ["string", "null"] },
+              "started_at": { "type": "string" },
+              "finished_at": { "type": "string" },
+              "errors": {
+                "type": "array",
+                "items": { "type": "object", "additionalProperties": true }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "source_config": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

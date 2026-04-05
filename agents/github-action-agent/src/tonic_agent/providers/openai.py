@@ -1,4 +1,4 @@
-"""OpenAI-compatible chat completions (TONIC_AGENT_OPENAI_* / RIZZLER_* fallback)."""
+"""OpenAI-compatible chat completions (TONIC_AGENT_OPENAI_* env)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class OpenAICompatibleProvider:
         api_key = env_config.get_openai_api_key()
         if not api_key:
             raise ValueError(
-                "Missing API key: set TONIC_AGENT_OPENAI_API_KEY (or RIZZLER_OPENAI_API_KEY)"
+                "Missing API key: set TONIC_AGENT_OPENAI_API_KEY"
             )
         base = env_config.get_openai_base_url() or "https://api.openai.com/v1"
         model = env_config.get_openai_model() or "gpt-4-turbo"
@@ -103,8 +103,13 @@ class OpenAICompatibleProvider:
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
+        *,
+        hydration_appendix: str = "",
     ) -> AIResponse:
         user = self._prompt.generate_conflict_prompt(conflict_file, conflict)
+        appendix = (hydration_appendix or "").strip()
+        if appendix:
+            user = f"{user}\n\n{appendix}"
         messages = [
             {"role": "system", "content": self._system_prompt() + prompt_bundle.github_json_response_suffix()},
             {"role": "user", "content": user},
@@ -114,7 +119,7 @@ class OpenAICompatibleProvider:
     def resolve_file(self, conflict_file: ConflictFile) -> AIResponse:
         user = self._prompt.generate_file_prompt(conflict_file)
         messages = [
-            {"role": "system", "content": self._system_prompt()},
+            {"role": "system", "content": self._system_prompt() + prompt_bundle.github_json_response_suffix()},
             {"role": "user", "content": user},
         ]
         return self._parse(self._post(messages))

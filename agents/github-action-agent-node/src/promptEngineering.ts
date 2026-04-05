@@ -22,11 +22,7 @@ function bundleKey(t: PromptTemplateEnv): keyof BundleV1["system_prompts"] {
 }
 
 export function promptTemplateFromEnv(): PromptTemplateEnv {
-  const raw = (
-    process.env.TONIC_AGENT_PROMPT_TEMPLATE ??
-    process.env.RIZZLER_PROMPT_TEMPLATE ??
-    "enhanced"
-  )
+  const raw = (process.env.TONIC_AGENT_PROMPT_TEMPLATE ?? "enhanced")
     .toLowerCase()
     .trim();
   if (raw === "default") {

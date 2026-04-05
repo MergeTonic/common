@@ -29,6 +29,10 @@
       "paths": [
         "agents/github-action-agent-node/**",
         "agents/shared-tonic-ai-prompts/**",
+        "schemas/**",
+        "prompts/**",
+        "scripts/generate_prompt_bundle.py",
+        "scripts/sync_agent_ai_prompts.py",
         "target-repo-templates/js-action/**"
       ],
       "release_types": ["repo_sync", "npm", "github_action"],
@@ -51,6 +55,10 @@
       "paths": [
         "agents/github-action-agent/**",
         "agents/shared-tonic-ai-prompts/**",
+        "schemas/**",
+        "prompts/**",
+        "scripts/generate_prompt_bundle.py",
+        "scripts/sync_agent_ai_prompts.py",
         "target-repo-templates/py-action/**"
       ],
       "release_types": ["repo_sync", "pypi", "github_action"],
@@ -72,6 +80,11 @@
       "component": "ts_cli",
       "paths": [
         "packages/tonic-core/**",
+        "packages/tonic-coding-hydration/**",
+        "schemas/**",
+        "prompts/**",
+        "scripts/generate_prompt_bundle.py",
+        "scripts/release/validate_release_contracts.py",
         "target-repo-templates/tsmt/**"
       ],
       "release_types": ["repo_sync", "npm"],
@@ -88,11 +101,47 @@
       }
     },
     {
+      "id": "hf-weave",
+      "repo": "mergetonic/hf-weave",
+      "component": "hf_weave",
+      "paths": [
+        "packages/hf-weave/**",
+        "packages/hf-weave/templates/**",
+        "packages/hf-weave-py/**",
+        "packages/tonic-core/src/weaveGit/**",
+        "packages/tonic-core/src/weaveCli.ts",
+        "merge-tonic-lib/tonic/weave_git/**",
+        "merge-tonic-lib/tonic/hf_weave/**",
+        "schemas/tonic-git-*.json",
+        "schemas/tonic-weave-*.json",
+        "scripts/weave/**",
+        "target-repo-templates/hf-weave/**",
+        ".github/actions/weave-verify/**",
+        "docs/tonic-hf-weave.md"
+      ],
+      "release_types": ["repo_sync", "npm", "pypi"],
+      "source_dir": "packages/hf-weave",
+      "template_dir": "target-repo-templates/hf-weave",
+      "version_key": "hf_weave",
+      "sync_policy": {
+        "managed_paths": ["src", "dist", "package.json", "tsconfig.json", ".pre-commit-hooks.yaml"],
+        "preserve_paths": ["README.md", ".github", "LICENSE"],
+        "required_workflows": [
+          ".github/workflows/contributor-policy-gate.yml",
+          ".github/workflows/accept-contributor-terms.yml"
+        ]
+      }
+    },
+    {
       "id": "mtpy",
       "repo": "mergetonic/mtpy",
       "component": "py_cli",
       "paths": [
         "merge-tonic-lib/**",
+        "schemas/**",
+        "prompts/**",
+        "scripts/generate_prompt_bundle.py",
+        "scripts/release/validate_release_contracts.py",
         "target-repo-templates/mtpy/**"
       ],
       "release_types": ["repo_sync", "pypi"],

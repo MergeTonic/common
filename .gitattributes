@@ -1,0 +1,59 @@
+# Normalize text files to LF in the repository and on checkout so tooling
+# (esbuild source maps, CI verify-extension-bundle-fresh) matches Linux CI.
+
+* text=auto
+
+*.ts      text eol=lf
+*.tsx     text eol=lf
+*.mts     text eol=lf
+*.cts     text eol=lf
+*.js      text eol=lf
+*.cjs     text eol=lf
+*.mjs     text eol=lf
+*.json    text eol=lf
+*.map     text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.html    text eol=lf
+*.css     text eol=lf
+*.scss    text eol=lf
+*.less    text eol=lf
+*.xml     text eol=lf
+*.svg     text eol=lf
+*.txt     text eol=lf
+*.sh      text eol=lf
+*.ps1     text eol=lf
+*.toml    text eol=lf
+*.py      text eol=lf
+*.pyi     text eol=lf
+*.rs      text eol=lf
+*.go      text eol=lf
+*.sql     text eol=lf
+*.dockerignore text eol=lf
+.gitattributes text eol=lf
+.gitignore     text eol=lf
+
+# Binary assets (override text guesses)
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.webp    binary
+*.ico     binary
+*.pdf     binary
+*.zip     binary
+*.gz      binary
+*.tgz     binary
+*.woff    binary
+*.woff2   binary
+*.eot     binary
+*.ttf     binary
+*.otf     binary
+*.wasm    binary
+*.parquet binary
+*.pyc     binary
+*.dll     binary
+*.exe     binary
+*.so      binary
+*.dylib   binary

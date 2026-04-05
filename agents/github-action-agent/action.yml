@@ -44,6 +44,46 @@ inputs:
     description: "Optional left,right intent tags, e.g. preserve_base,prefer_head"
     required: false
     default: ""
+  enable_ast_hydration:
+    description: "true to run merge-tonic ast-grep-hydrate in the workspace before comments"
+    required: false
+    default: "false"
+  ast_grep_version:
+    description: "When enable_ast_hydration is true, npm version of @ast-grep/cli to install so `sg` is on PATH"
+    required: false
+    default: "0.39.0"
+  ast_hydration_extra_args:
+    description: "Extra CLI tokens for ast-grep-hydrate or hydrate (space-separated). Retrieval flags (--enable-retrieval, --retrieval-backend) and Chroma/embeddings env are documented in this action's README and docs/retrieval-hydration.md."
+    required: false
+    default: ""
+  ast_hydration_subcommand:
+    description: "ast-grep-hydrate (default) or hydrate for full multi-phase pipeline under .tonic/hydrate-out"
+    required: false
+    default: "ast-grep-hydrate"
+  ast_hydration_strict:
+    description: "true to fail the action when ast-grep-hydrate exits non-zero (except partial 13)"
+    required: false
+    default: "false"
+  hydration_user_query:
+    description: "Optional --user-query for merge-tonic hydrate (hydrate subcommand only)"
+    required: false
+    default: ""
+  hydration_follow_up:
+    description: "Optional --follow-up for merge-tonic hydrate"
+    required: false
+    default: ""
+  hydration_prior_run:
+    description: "Optional --prior-run path for merge-tonic hydrate"
+    required: false
+    default: ""
+  hydration_question_mode:
+    description: "For hydrate subcommand: off | on | auto (LLM question refinement; default off)"
+    required: false
+    default: "off"
+  merge_llm_include_run_summary:
+    description: "Deprecated (no-op). Run summary is always included when a hydration run JSON is present."
+    required: false
+    default: "false"
   github_login_left:
     description: Optional GitHub login for left author tag when author_mode is not ref
     required: false
@@ -80,6 +120,46 @@ inputs:
     description: "PyPI version of mergetonic-github-agent when not using the mergetonic workspace"
     required: false
     default: "0.1.0"
+  tonic_chroma_url:
+    description: "Optional; sets TONIC_CHROMA_URL for hydrate retrieval (Chroma HTTP API base). Empty omits the variable."
+    required: false
+    default: ""
+  tonic_chroma_collection:
+    description: "Optional; sets TONIC_CHROMA_COLLECTION (empty = omit; runtime default applies when unset)."
+    required: false
+    default: ""
+  tonic_retrieval_backend:
+    description: "Optional; sets TONIC_RETRIEVAL_BACKEND (memory or chroma). Overrides CLI --retrieval-backend when set. Empty omits."
+    required: false
+    default: ""
+  tonic_embedding_base_url:
+    description: "Optional; sets TONIC_EMBEDDING_BASE_URL for OpenAI-compatible embeddings HTTP. Empty omits."
+    required: false
+    default: ""
+  tonic_embedding_backend:
+    description: "Optional; sets TONIC_EMBEDDING_BACKEND (auto, histogram, openai_compatible, hf_inference). Empty omits."
+    required: false
+    default: ""
+  hf_token:
+    description: "Optional Hugging Face token (pass via secrets); used when backends select Inference Providers."
+    required: false
+    default: ""
+  tonic_llm_backend:
+    description: "Optional; sets TONIC_LLM_BACKEND (e.g. hf_inference). Empty omits."
+    required: false
+    default: ""
+  tonic_hf_chat_model:
+    description: "Optional; sets TONIC_HF_CHAT_MODEL for hf_inference chat."
+    required: false
+    default: ""
+  tonic_hf_embed_model:
+    description: "Optional; sets TONIC_HF_EMBED_MODEL for hf_inference embeddings."
+    required: false
+    default: ""
+  tonic_hf_inference_provider:
+    description: "Optional; sets TONIC_HF_INFERENCE_PROVIDER for huggingface_hub InferenceClient."
+    required: false
+    default: ""
 outputs:
   status:
     description: "Run status (ok or demo)"
@@ -105,25 +185,45 @@ runs:
         fetch-depth: 0
     - name: Capture immutable PR targets
       shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        GH_TOKEN: ${{ inputs.token }}
       run: |
+        set -euo pipefail
+        if [ "${EVENT_NAME}" = "pull_request" ]; then
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+        elif [ "${EVENT_NAME}" = "issue_comment" ]; then
+          PR_NUM="${{ github.event.issue.number }}"
+          PR_JSON="${RUNNER_TEMP}/tonic-pull.json"
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUM}" > "${PR_JSON}"
+          BASE_SHA="$(jq -r '.base.sha' "${PR_JSON}")"
+          HEAD_SHA="$(jq -r '.head.sha' "${PR_JSON}")"
+          BASE_REF="$(jq -r '.base.ref' "${PR_JSON}")"
+          echo "TONIC_PULL_REQUEST_JSON=${PR_JSON}" >> "${GITHUB_ENV}"
+        else
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+        fi
         {
-          echo "TONIC_TARGET_BASE_SHA=${{ github.event.pull_request.base.sha }}"
-          echo "TONIC_TARGET_HEAD_SHA=${{ github.event.pull_request.head.sha }}"
-          echo "TONIC_TARGET_BASE_BRANCH=${{ github.event.pull_request.base.ref }}"
+          echo "TONIC_TARGET_BASE_SHA=${BASE_SHA}"
+          echo "TONIC_TARGET_HEAD_SHA=${HEAD_SHA}"
+          echo "TONIC_TARGET_BASE_BRANCH=${BASE_REF}"
+          echo "TONIC_PR_NUMBER=${PR_NUM}"
         } >> "${GITHUB_ENV}"
     - name: Prepare isolated git workspace
       if: ${{ inputs.merge_engine == 'git' }}
       shell: bash
       working-directory: ${{ github.workspace }}
-      env:
-        TARGET_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        TARGET_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        : "${TARGET_BASE_SHA:?missing pull_request.base.sha}"
-        : "${TARGET_HEAD_SHA:?missing pull_request.head.sha}"
+        TARGET_BASE_SHA="${TONIC_TARGET_BASE_SHA:?missing TONIC_TARGET_BASE_SHA}"
+        TARGET_HEAD_SHA="${TONIC_TARGET_HEAD_SHA:?missing TONIC_TARGET_HEAD_SHA}"
+        PR_NUMBER="${TONIC_PR_NUMBER:?missing TONIC_PR_NUMBER}"
         if ! git fetch origin "${TARGET_BASE_SHA}" "${TARGET_HEAD_SHA}" --no-tags; then
-          : "${PR_NUMBER:?missing pull_request.number}"
           git fetch origin "${TARGET_BASE_SHA}" "refs/pull/${PR_NUMBER}/head" --no-tags
           TARGET_HEAD_SHA="$(git rev-parse FETCH_HEAD)"
         fi
@@ -157,6 +257,18 @@ runs:
           pip install "tonic==${TONIC_V}"
           pip install "mergetonic-github-agent==${TONIC_AGENT_V}"
         fi
+    - uses: actions/setup-node@v6
+      if: ${{ inputs.enable_ast_hydration == 'true' }}
+      with:
+        node-version: "20"
+    - name: Install ast-grep (sg) for hydration
+      if: ${{ inputs.enable_ast_hydration == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        npm install -g "@ast-grep/cli@${{ inputs.ast_grep_version }}"
+        command -v sg
+        sg --version
     - id: run_agent
       name: Run agent
       shell: bash
@@ -172,6 +284,15 @@ runs:
         INPUT_AUTHOR_ALIAS_LEFT: ${{ inputs.author_alias_left }}
         INPUT_AUTHOR_ALIAS_RIGHT: ${{ inputs.author_alias_right }}
         INPUT_INTENT_PAIR: ${{ inputs.intent_pair }}
+        INPUT_ENABLE_AST_HYDRATION: ${{ inputs.enable_ast_hydration }}
+        INPUT_AST_HYDRATION_EXTRA_ARGS: ${{ inputs.ast_hydration_extra_args }}
+        INPUT_AST_HYDRATION_SUBCOMMAND: ${{ inputs.ast_hydration_subcommand }}
+        INPUT_AST_HYDRATION_STRICT: ${{ inputs.ast_hydration_strict }}
+        INPUT_HYDRATION_USER_QUERY: ${{ inputs.hydration_user_query }}
+        INPUT_HYDRATION_FOLLOW_UP: ${{ inputs.hydration_follow_up }}
+        INPUT_HYDRATION_PRIOR_RUN: ${{ inputs.hydration_prior_run }}
+        INPUT_HYDRATION_QUESTION_MODE: ${{ inputs.hydration_question_mode }}
+        INPUT_MERGE_LLM_INCLUDE_RUN_SUMMARY: ${{ inputs.merge_llm_include_run_summary }}
         INPUT_GITHUB_LOGIN_LEFT: ${{ inputs.github_login_left }}
         INPUT_GITHUB_LOGIN_RIGHT: ${{ inputs.github_login_right }}
         INPUT_HYDRATE_MODE: ${{ inputs.hydrate_mode }}
@@ -179,6 +300,16 @@ runs:
         INPUT_ENABLE_BLAME: ${{ inputs.enable_blame }}
         INPUT_BLAME_MAX_COMMITS: ${{ inputs.blame_max_commits }}
         TONIC_AGENT_REPORT_PATH: ${{ inputs.report_path }}
+        TONIC_CHROMA_URL: ${{ inputs.tonic_chroma_url }}
+        TONIC_CHROMA_COLLECTION: ${{ inputs.tonic_chroma_collection }}
+        TONIC_RETRIEVAL_BACKEND: ${{ inputs.tonic_retrieval_backend }}
+        TONIC_EMBEDDING_BASE_URL: ${{ inputs.tonic_embedding_base_url }}
+        TONIC_EMBEDDING_BACKEND: ${{ inputs.tonic_embedding_backend }}
+        HF_TOKEN: ${{ inputs.hf_token }}
+        TONIC_LLM_BACKEND: ${{ inputs.tonic_llm_backend }}
+        TONIC_HF_CHAT_MODEL: ${{ inputs.tonic_hf_chat_model }}
+        TONIC_HF_EMBED_MODEL: ${{ inputs.tonic_hf_embed_model }}
+        TONIC_HF_INFERENCE_PROVIDER: ${{ inputs.tonic_hf_inference_provider }}
         GITHUB_TOKEN: ${{ inputs.token }}
         GITHUB_EVENT_PATH: ${{ github.event_path }}
         GITHUB_REPOSITORY: ${{ github.repository }}

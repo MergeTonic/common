@@ -6,6 +6,7 @@
 import type { AuthorMode } from "./authorAliasResolver";
 import { createDefaultGitAuthorProbe, resolveAuthorAliasForSide } from "./authorAliasResolver";
 import type { ConflictBlock } from "./conflictParser";
+import { parseGitConflictsWithDiagnostics } from "./gitConflictParser";
 import { formatConflictLabel } from "./markerLabel";
 import { conflictRegionsToAnnotatedLines, type ConflictRegion } from "./mergeUtils";
 
@@ -118,4 +119,39 @@ export function gitConflictBlocksToTonicAnnotatedPreview(
   return conflictRegionsToAnnotatedLines(
     regions.map((r) => ({ ...r, conflictKind: GIT_MERGE_KIND })),
   );
+}
+
+/** Full file: replace `git merge-file` conflict hunks with Tonic markers; pass through clean regions. */
+export function gitMergeFileOutputToTonicAnnotatedLines(
+  mergedGit: string,
+  opts?: GitMergeHydrationOptions,
+): string[] {
+  const rawLines = mergedGit.split(/\r?\n/);
+  if (rawLines.length && rawLines[rawLines.length - 1] === "") {
+    rawLines.pop();
+  }
+  const { blocks } = parseGitConflictsWithDiagnostics(mergedGit);
+  if (blocks.length === 0) {
+    return rawLines;
+  }
+  const regions = gitConflictBlocksToConflictRegions(blocks, opts);
+  const tonicChunks = regions.map((r) =>
+    conflictRegionsToAnnotatedLines([{ ...r, conflictKind: GIT_MERGE_KIND }]),
+  );
+  const out: string[] = [];
+  let idx = 0;
+  for (let bi = 0; bi < blocks.length; bi++) {
+    const b = blocks[bi]!;
+    while (idx < b.startLine) {
+      out.push(rawLines[idx]!);
+      idx++;
+    }
+    out.push(...tonicChunks[bi]!);
+    idx = b.endLine + 1;
+  }
+  while (idx < rawLines.length) {
+    out.push(rawLines[idx]!);
+    idx++;
+  }
+  return out;
 }

@@ -52,6 +52,7 @@ export function mergeReportDict(params: {
   markerBranchCommit?: string | null;
   markerPaths?: string[];
   mergeReportArtifactName?: string | null;
+  astHydration?: Record<string, unknown> | null;
 }): Record<string, unknown> {
   const files = params.artifacts.map((a) => {
     const inc =
@@ -80,6 +81,9 @@ export function mergeReportDict(params: {
   }
   if (params.mergeReportArtifactName) {
     out.merge_report_artifact_name = params.mergeReportArtifactName;
+  }
+  if (params.astHydration && Object.keys(params.astHydration).length > 0) {
+    out.ast_hydration = params.astHydration;
   }
   return out;
 }

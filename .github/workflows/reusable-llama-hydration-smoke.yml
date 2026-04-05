@@ -1,0 +1,60 @@
+# Opt-in reusable workflow: Chroma (services) + optional llama-server via scripts/ci/start_llama_servers.sh.
+# Enable from a caller with `uses: ./.github/workflows/reusable-llama-hydration-smoke.yml` and `with: run: true`.
+# Pin LLAMA_RELEASE_ZIP_URL (ggml-org/llama.cpp Linux release .zip) and GGUF paths in repo/org Variables or prior steps.
+#
+# Pattern A — one server (chat + embeddings): set LLAMA_SINGLE_MODEL (+ optional LLAMA_SINGLE_PORT).
+# Pattern B — embed :8080 + chat :8081: set LLAMA_EMBED_MODEL and optionally LLAMA_CHAT_MODEL.
+# Hydration env (example): TONIC_EMBEDDING_BASE_URL=http://127.0.0.1:8080/v1, TONIC_CHROMA_URL=http://127.0.0.1:8000, TONIC_RETRIEVAL_BACKEND=chroma
+name: Reusable llama + Chroma hydration smoke
+
+on:
+  workflow_call:
+    inputs:
+      run:
+        description: When true, runs the heavy job (requires llama env vars or cached binaries).
+        type: boolean
+        default: false
+
+jobs:
+  chroma-llama-hydrate-smoke:
+    if: inputs.run
+    runs-on: ubuntu-latest
+    services:
+      chroma:
+        image: chromadb/chroma:0.5.23
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/core
+      - name: Start llama-server(s)
+        env:
+          START_LLAMA_STRICT: "1"
+          LLAMA_RELEASE_ZIP_URL: ${{ vars.LLAMA_RELEASE_ZIP_URL }}
+          LLAMA_SERVER_BIN: ${{ vars.LLAMA_SERVER_BIN }}
+          LLAMA_SINGLE_MODEL: ${{ vars.LLAMA_SINGLE_GGUF }}
+          LLAMA_EMBED_MODEL: ${{ vars.LLAMA_EMBED_GGUF }}
+          LLAMA_CHAT_MODEL: ${{ vars.LLAMA_CHAT_GGUF }}
+        run: bash scripts/ci/start_llama_servers.sh
+      - name: Hydrate smoke (Chroma + optional HTTP embeddings)
+        shell: bash
+        env:
+          TONIC_CHROMA_URL: http://127.0.0.1:8000
+          TONIC_RETRIEVAL_BACKEND: chroma
+          TONIC_EMBEDDING_BACKEND: ${{ vars.TONIC_EMBEDDING_BACKEND }}
+          TONIC_EMBEDDING_BASE_URL: ${{ vars.TONIC_EMBEDDING_BASE_URL }}
+          TONIC_EMBEDDING_MODEL: ${{ vars.TONIC_EMBEDDING_MODEL }}
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          echo "// x" >"$d/sample.ts"
+          FAKE_SG="$GITHUB_WORKSPACE/packages/tonic-core/src/test/fixtures/astGrep/fake-sg-success.js"
+          MERGETONIC_LICENSE_ACCEPTED=1 node packages/tonic-core/dist/cli.js hydrate \
+            --repo "$d" --out-dir "$d/out" --left-intent L --right-intent R --question-mode off \
+            --enable-retrieval --retrieval-backend chroma \
+            --ast-grep-bin "$FAKE_SG"
+          test -s "$d/out/retrieval-hydration.json"

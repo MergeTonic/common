@@ -1,0 +1,26 @@
+name: HF weave compat smoke
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "huggingface_hub>=0.26.0"
+      - name: huggingface_hub import
+        run: python -c "import huggingface_hub; print(huggingface_hub.__version__)"
+      - name: hf CLI help (optional)
+        run: |
+          pip install -U huggingface_hub[cli] || pip install -U huggingface_hub
+          hf --help || true
+          hf extensions --help || true

@@ -5,7 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { mergeSnapshots, annotatedToConflictFile } from "@mergetonic/core";
 import { buildSummaryBody, markerSummary } from "../githubComments";
-import { loadImmutableTargets, writeActionOutputs } from "../index";
+import { loadImmutableTargets, resolvePrForAgent, writeActionOutputs } from "../index";
 import { hydrateGitMerge } from "../hydrateGitMerge";
 import { execFileSync } from "node:child_process";
 
@@ -234,5 +234,30 @@ test("loadImmutableTargets requires env contract in strict mode", () => {
     else process.env.TONIC_TARGET_HEAD_SHA = prevHead;
     if (prevBranch == null) delete process.env.TONIC_TARGET_BASE_BRANCH;
     else process.env.TONIC_TARGET_BASE_BRANCH = prevBranch;
+  }
+});
+
+test("resolvePrForAgent prefers event.pull_request", async () => {
+  const pr = { number: 11, title: "t" };
+  const r = await resolvePrForAgent({ pull_request: pr }, "o", "n", "tok");
+  assert.equal(r.number, 11);
+});
+
+test("resolvePrForAgent reads TONIC_PULL_REQUEST_JSON", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tonic-pr-json-"));
+  const jp = path.join(dir, "pull.json");
+  fs.writeFileSync(jp, JSON.stringify({ number: 22, title: "f" }));
+  const prev = process.env.TONIC_PULL_REQUEST_JSON;
+  process.env.TONIC_PULL_REQUEST_JSON = jp;
+  try {
+    const r = await resolvePrForAgent({}, "o", "n", undefined);
+    assert.equal(r.number, 22);
+  } finally {
+    if (prev === undefined) {
+      delete process.env.TONIC_PULL_REQUEST_JSON;
+    } else {
+      process.env.TONIC_PULL_REQUEST_JSON = prev;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

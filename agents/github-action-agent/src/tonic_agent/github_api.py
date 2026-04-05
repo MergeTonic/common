@@ -104,6 +104,16 @@ def _request(
         raise RuntimeError(f"GitHub API {e.code}: {e.read().decode('utf-8', errors='replace')}") from e
 
 
+def get_pull_request(owner: str, repo: str, pull_number: int, token: str) -> dict[str, Any]:
+    """GET /repos/{owner}/{repo}/pulls/{pull_number} (same shape as pull_request webhook object)."""
+    api = _api_root()
+    url = f"{api}/repos/{owner}/{repo}/pulls/{pull_number}"
+    data = get_json(url, token)
+    if not isinstance(data, dict):
+        raise RuntimeError("get_pull_request: invalid response payload")
+    return data
+
+
 def list_issue_comments(owner: str, repo: str, issue_number: int, token: str) -> list[dict[str, Any]]:
     api = _api_root()
     out: list[dict[str, Any]] = []

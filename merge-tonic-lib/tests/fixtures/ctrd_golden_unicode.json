@@ -1,0 +1,13 @@
+{
+  "description": "CTRD id parity with non-ASCII in path and lines (Python ensure_ascii=False vs TS canonical serializer)",
+  "payload": {
+    "schema": "tonic-weave-trace-replay",
+    "version": "1",
+    "manifest_commit": "abc",
+    "path": "café/中文.txt",
+    "steps": [{ "commit": "c1", "lines": ["line-☃"] }],
+    "diff_engine_id": "tonic-v1",
+    "weave_format_version": "1"
+  },
+  "ctrd_id": "abe08a34f8a5e8322594030f675e049dd4fb054c042f11c8f831570b0129a283"
+}

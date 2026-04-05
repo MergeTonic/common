@@ -1,0 +1,30 @@
+{
+  "name": "@mergetonic/hf-weave",
+  "version": "0.1.0",
+  "description": "Hugging Face Hub glue, hook installers, and hf CLI extension helpers for Tonic weave",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md", ".pre-commit-hooks.yaml", "LICENSE"],
+  "scripts": {
+    "build": "node ../../scripts/run-tsc.cjs -p .",
+    "test": "npm run build && node --test dist/test/hubWriteAuth.test.js dist/test/ctrdParity.test.js"
+  },
+  "peerDependencies": {
+    "@mergetonic/core": "^0.1.0"
+  },
+  "optionalDependencies": {
+    "@huggingface/hub": "^1.0.0"
+  },
+  "devDependencies": {
+    "@mergetonic/core": "file:../tonic-core",
+    "@huggingface/hub": "^1.0.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "license": "GPL-2.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mergetonic/common.git"
+  }
+}

@@ -12,11 +12,11 @@ export type RetryConfig = {
 
 export function retryConfigFromEnv(): RetryConfig {
   return {
-    maxRetries: envU32("TONIC_AGENT_MAX_RETRIES", "RIZZLER_MAX_RETRIES", 3),
-    initialBackoffMs: envU32("TONIC_AGENT_INITIAL_BACKOFF_MS", "RIZZLER_INITIAL_BACKOFF_MS", 1000),
-    maxBackoffMs: envU32("TONIC_AGENT_MAX_BACKOFF_MS", "RIZZLER_MAX_BACKOFF_MS", 30000),
-    backoffMultiplier: envFloat("TONIC_AGENT_BACKOFF_MULTIPLIER", "RIZZLER_BACKOFF_MULTIPLIER", 2),
-    jitterFactor: envFloat("TONIC_AGENT_JITTER_FACTOR", "RIZZLER_JITTER_FACTOR", 0.1),
+    maxRetries: envU32("TONIC_AGENT_MAX_RETRIES", 3),
+    initialBackoffMs: envU32("TONIC_AGENT_INITIAL_BACKOFF_MS", 1000),
+    maxBackoffMs: envU32("TONIC_AGENT_MAX_BACKOFF_MS", 30000),
+    backoffMultiplier: envFloat("TONIC_AGENT_BACKOFF_MULTIPLIER", 2),
+    jitterFactor: envFloat("TONIC_AGENT_JITTER_FACTOR", 0.1),
   };
 }
 

@@ -6,7 +6,18 @@
     "_Sidebar.md",
     "Contributing-Docs.md",
     "Core-TS-@mergetonic-core.md",
-    "Core-Python-mergetonic.md"
+    "Core-Python-mergetonic.md",
+    "GitHub-Agent-Node.md",
+    "GitHub-Agent-Python.md",
+    "GitHub-Agents-Runtime.md",
+    "VSCode-Extension.md",
+    "CLI-Reference.md",
+    "Repo-Profile.md",
+    "Hydration-Pipeline.md",
+    "HF-Weave.md",
+    "Architecture-and-Parity.md",
+    "Release-and-Target-Sync.md",
+    "Naming-Conventions.md"
   ],
   "denylist_pages": []
 }

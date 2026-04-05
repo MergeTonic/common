@@ -12,6 +12,7 @@ import {
 } from "@mergetonic/core";
 import {
   createPullRequest,
+  getPullRequest,
   listPullReviewComments,
   postPullReviewComment,
   upsertIssueComment,
@@ -43,6 +44,8 @@ import {
 import { resolveConflictWithOpenAi } from "./aiResolve";
 import { applyPrLabelsToConflictFile } from "./conflictLabels";
 import { postTonicCheck } from "./githubChecks";
+import { runAstHydrationStep } from "./astHydrationStep";
+import { buildMergeLlmHydrationAppendix } from "./mergeLlmHydrationContext";
 
 function truthyEnv(val: string | undefined): boolean {
   if (!val) {
@@ -157,6 +160,41 @@ type PublishContext = {
   targetBaseBranch: string;
   sourceHeadSha: string;
 };
+
+export async function resolvePrForAgent(
+  event: Record<string, unknown>,
+  owner: string,
+  repo: string,
+  token: string | undefined,
+): Promise<Record<string, unknown>> {
+  const direct = event.pull_request as Record<string, unknown> | undefined;
+  if (direct && typeof direct.number === "number") {
+    return direct;
+  }
+  const jsonPath = (process.env.TONIC_PULL_REQUEST_JSON ?? "").trim();
+  if (jsonPath && fs.existsSync(jsonPath)) {
+    try {
+      const cached = JSON.parse(fs.readFileSync(jsonPath, "utf8")) as Record<string, unknown>;
+      if (cached && typeof cached.number === "number") {
+        return cached;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  const issue = event.issue as Record<string, unknown> | undefined;
+  const hasLinkedPr = issue != null && issue.pull_request != null;
+  if (token && hasLinkedPr && issue) {
+    const n = issue.number;
+    if (typeof n === "number" && n > 0) {
+      return await getPullRequest(owner, repo, n, token);
+    }
+    if (typeof n === "string" && /^\d+$/.test(n)) {
+      return await getPullRequest(owner, repo, parseInt(n, 10), token);
+    }
+  }
+  return {};
+}
 
 function runGit(cwd: string, args: string[], allowFail = false): string {
   try {
@@ -343,10 +381,17 @@ export async function main(): Promise<void> {
 
   const runId = process.env.GITHUB_RUN_ID ?? randomUUID();
   const event = loadEvent();
-  const pr = (event.pull_request ?? {}) as Record<string, unknown>;
+  const repo = process.env.GITHUB_REPOSITORY ?? "";
+  let owner = "";
+  let name = "";
+  if (repo.includes("/")) {
+    const parts = repo.split("/", 2);
+    owner = parts[0] ?? "";
+    name = parts[1] ?? "";
+  }
+  const pr = await resolvePrForAgent(event, owner, name, token);
   const title = (pr.title as string) ?? "PR";
   const sourcePrNumber = typeof pr.number === "number" ? pr.number : undefined;
-  const repo = process.env.GITHUB_REPOSITORY ?? "";
 
   if (!sourcePrNumber || !repo || !token) {
     await runDemoLocal(runId, verbosity, token);
@@ -368,8 +413,6 @@ export async function main(): Promise<void> {
   });
   const baseSha = immutableTargets.baseSha;
   const headSha = immutableTargets.headSha;
-
-  const [owner, name] = repo.split("/", 2);
   if (mergeEngine === "git" && !isolatedWorkspace) {
     throw new Error("git merge engine requires TONIC_AGENT_ISOLATED_WORKSPACE");
   }
@@ -395,6 +438,8 @@ export async function main(): Promise<void> {
     console.error("Tonic agent: hydrate failed:", e);
     throw e;
   }
+  const astWorkspace = mergeEngine === "git" ? isolatedWorkspace : (process.env.GITHUB_WORKSPACE ?? "").trim() || ".";
+  const astHydrationResult = await runAstHydrationStep(astWorkspace);
   validateCompletionReadiness({ pairs });
 
   const artifacts: MergeArtifactJson[] = [];
@@ -499,6 +544,20 @@ export async function main(): Promise<void> {
     mergeReportArtifact: mergeReportArtifactName ?? undefined,
   };
 
+  const astHydrationPayload =
+    astHydrationResult.mode === "skipped"
+      ? null
+      : {
+          mode: astHydrationResult.mode,
+          exit_code: astHydrationResult.exitCode,
+          hydration_run_path: astHydrationResult.runPath,
+          ast_evidence_path: astHydrationResult.astEvidencePath,
+          intent_hydration_path: astHydrationResult.intentHydrationPath,
+          retrieval_path: astHydrationResult.retrievalPath,
+          code_walk_trace_path: astHydrationResult.codeWalkTracePath,
+          prompt_excerpt: astHydrationResult.promptExcerpt,
+        };
+
   const report = mergeReportDict({
     runId,
     prTitle: title,
@@ -513,6 +572,7 @@ export async function main(): Promise<void> {
     markerBranchCommit: markerBranchResult?.commitSha ?? null,
     markerPaths: markerBranchResult?.paths,
     mergeReportArtifactName,
+    astHydration: astHydrationPayload,
   });
 
   if (reportPath) {
@@ -637,7 +697,13 @@ export async function main(): Promise<void> {
         let usedAi = false;
         if (!isOrphan && enableAi) {
           try {
-            const content = await resolveConflictWithOpenAi(cf, reg);
+            const hydrationAppendix =
+              astHydrationPayload != null
+                ? buildMergeLlmHydrationAppendix(astWorkspace, astHydrationPayload, path)
+                : "";
+            const content = await resolveConflictWithOpenAi(cf, reg, {
+              hydrationAppendix: hydrationAppendix || undefined,
+            });
             if (content) {
               const parsed = parseResolvedLinesFromAi(content);
               if (parsed.lines.length) {

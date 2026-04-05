@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergetonic.dev/schemas/tonic-weave-trace-replay.v1.json",
+  "title": "CTRD (Canonical Trace Replay Descriptor)",
+  "description": "Versioned JSON artifact (CTRD) that specifies weave replay inputs for a manifest path; content-addressed on Hub under .tonic/hub/traces/{ctrd_id}.json",
+  "type": "object",
+  "required": ["schema", "version", "ctrd_id", "manifest_commit", "path", "steps", "diff_engine_id", "weave_format_version"],
+  "properties": {
+    "schema": { "const": "tonic-weave-trace-replay" },
+    "version": { "type": "string", "const": "1" },
+    "ctrd_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex of canonical JSON (sorted keys) of this descriptor excluding ctrd_id"
+    },
+    "manifest_commit": { "type": "string", "description": "Git commit SHA from tonic-git-manifest.commit when published" },
+    "path": { "type": "string", "description": "Logical path key in manifest.paths" },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["commit", "lines"],
+        "properties": {
+          "commit": { "type": "string" },
+          "lines": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "diff_engine_id": { "type": "string" },
+    "weave_format_version": { "type": "string" },
+    "expected_weave_serialized_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Optional expected weave blob hash after replay"
+    }
+  },
+  "additionalProperties": true
+}

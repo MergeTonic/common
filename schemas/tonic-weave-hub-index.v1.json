@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-weave-hub-index.v1.json",
+  "title": "TonicWeaveHubIndexV1",
+  "type": "object",
+  "required": ["schema", "version", "repo_id", "objects"],
+  "properties": {
+    "schema": { "const": "tonic-weave-hub-index" },
+    "version": { "type": "string", "const": "1" },
+    "repo_id": { "type": "string", "description": "Hub repo id, e.g. org/name" },
+    "revision": { "type": "string", "description": "Optional index revision or commit pointer" },
+    "objects": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["sha256", "size_bytes"],
+        "properties": {
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "content_type": { "type": "string" },
+          "hub_path": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "description": "Map of logical key (e.g. weave serialized sha) to Hub object metadata"
+    }
+  },
+  "additionalProperties": true
+}

@@ -17,6 +17,8 @@ The composite action **[`agents/github-action-agent-node/action.yml`](../github-
 
 ## Python agent (this package)
 
+On **`issue_comment`** (for example the workflow [`.github/workflows/tonic-pr-agent-comment.yml`](../../.github/workflows/tonic-pr-agent-comment.yml)), the composite action resolves the PR with `gh api …/pulls/{issue.number}`, exports `TONIC_TARGET_*` and `TONIC_PULL_REQUEST_JSON`, and the agent loads that pull JSON when `pull_request` is missing from the webhook. The dogfood comment workflow uses **`merge_engine: api`** so summary and review comments stay on the **same PR** the user commented on (unlike `merge_engine=git`, which opens a separate isolated run PR).
+
 On **`pull_request` events**, the default path (`merge_engine=git`) hydrates conflicts from isolated `git merge --no-commit`, then posts:
 
 - One **summary** issue comment (upserted via `<!-- tonic-agent:summary` marker)
@@ -51,6 +53,8 @@ If there is **no** `pull_request` in `GITHUB_EVENT_PATH` (local run), the agent 
 | `INPUT_AUTHOR_MODE` | Git-merge hydration: `base-head` (default), `human`, or `ref` |
 | `INPUT_AUTHOR_ALIAS_LEFT` / `INPUT_AUTHOR_ALIAS_RIGHT` | Optional explicit author tags on Tonic markers |
 | `INPUT_INTENT_PAIR` | Optional `left,right` intent tags (defaults `preserve_base,prefer_head`) |
+| `INPUT_HYDRATION_QUESTION_MODE` | When `ast_hydration_subcommand` is `hydrate`: `off` (default), `on`, or `auto` for `--question-mode` |
+| `TONIC_PULL_REQUEST_JSON` | Path to a pull JSON file (set by the composite action on `issue_comment`) |
 | `INPUT_GITHUB_LOGIN_LEFT` / `INPUT_GITHUB_LOGIN_RIGHT` | Optional GitHub logins for author tags |
 | `TONIC_AGENT_MAX_FILES` | Cap files merged (default `200`) |
 | `TONIC_AGENT_REPORT_PATH` | Write full merge report JSON |
@@ -59,22 +63,53 @@ If there is **no** `pull_request` in `GITHUB_EVENT_PATH` (local run), the agent 
 
 ## Environment variables (TONIC_AGENT_*)
 
-| Tonic | Legacy fallback env | Purpose |
-| ----- | ------------------- | ------- |
-| `TONIC_AGENT_SYSTEM_PROMPT` | `RIZZLER_SYSTEM_PROMPT` | Override system prompt |
-| `TONIC_AGENT_PROMPT_TEMPLATE` | `RIZZLER_PROMPT_TEMPLATE` | `default`, `enhanced`, `context-aware` |
-| `TONIC_AGENT_OPENAI_API_KEY` | `RIZZLER_OPENAI_API_KEY` | API key |
-| `TONIC_AGENT_OPENAI_BASE_URL` | `RIZZLER_OPENAI_BASE_URL` | OpenAI-compatible base URL |
-| `TONIC_AGENT_OPENAI_MODEL` | `RIZZLER_OPENAI_MODEL` | Model id |
-| `TONIC_AGENT_TIMEOUT` | `RIZZLER_TIMEOUT` | HTTP timeout (seconds) |
-| `TONIC_AGENT_USE_CACHE` | `RIZZLER_USE_CACHE` | `true`/`false` |
-| `TONIC_AGENT_CACHE_DIR` | `RIZZLER_CACHE_DIR` | Disk cache directory |
-| `TONIC_AGENT_CACHE_TTL_HOURS` | `RIZZLER_CACHE_TTL_HOURS` | Cache TTL |
-| `TONIC_AGENT_USE_RETRIES` | `RIZZLER_USE_RETRIES` | Enable retry wrapper |
-| `TONIC_AGENT_MAX_RETRIES` | `RIZZLER_MAX_RETRIES` | Max retries |
-| `TONIC_AGENT_FALLBACK_ORDER` | `RIZZLER_FALLBACK_ORDER` | Comma-separated providers (extensible) |
-| `TONIC_AGENT_TOKEN_LIMIT` | `RIZZLER_TOKEN_LIMIT` | Windowing token estimate threshold |
-| `TONIC_AGENT_MAX_CONTEXT_LINES` | `RIZZLER_MAX_CONTEXT_LINES` | Surrounding context |
+| Variable | Purpose |
+| -------- | ------- |
+| `TONIC_AGENT_SYSTEM_PROMPT` | Override system prompt |
+| `TONIC_AGENT_PROMPT_TEMPLATE` | `default`, `enhanced`, `context-aware` |
+| `TONIC_AGENT_OPENAI_API_KEY` | API key |
+| `TONIC_AGENT_OPENAI_BASE_URL` | OpenAI-compatible base URL |
+| `TONIC_AGENT_OPENAI_MODEL` | Model id |
+| `TONIC_AGENT_TIMEOUT` | HTTP timeout (seconds) |
+| `TONIC_AGENT_USE_CACHE` | `true`/`false` |
+| `TONIC_AGENT_CACHE_DIR` | Disk cache directory |
+| `TONIC_AGENT_CACHE_TTL_HOURS` | Cache TTL |
+| `TONIC_AGENT_USE_RETRIES` | Enable retry wrapper |
+| `TONIC_AGENT_MAX_RETRIES` | Max retries |
+| `TONIC_AGENT_FALLBACK_ORDER` | Comma-separated providers (extensible) |
+| `TONIC_AGENT_TOKEN_LIMIT` | Windowing token estimate threshold |
+| `TONIC_AGENT_MAX_CONTEXT_LINES` | Surrounding context |
+
+## Hydration retrieval / Chroma
+
+Batch retrieval during the **`hydrate`** subcommand (`ast_hydration_subcommand: hydrate`) is **off** unless you pass `--enable-retrieval` via `ast_hydration_extra_args` or enable it from an `@tonicmerge` comment (see [`.github/workflows/tonic-pr-agent-comment.yml`](../../.github/workflows/tonic-pr-agent-comment.yml)).
+
+- **`--enable-retrieval` without `--retrieval-backend`** uses the **in-memory** vector index (histogram embeddings by default). No Chroma URL or extra secrets are required.
+- **Optional embedding cache (memory backend):** pass **`--vector-cache-path`** / **`--vector-cache-mode`** in **`ast_hydration_extra_args`**, or set **`TONIC_VECTOR_CACHE_PATH`** and **`TONIC_VECTOR_CACHE_MODE`** in **`env:`**, to persist and reload chunk embeddings across runs (see **`docs/retrieval-hydration.md`**).
+- **`--retrieval-backend chroma`** needs a reachable Chroma HTTP API. Set **`TONIC_CHROMA_URL`** (and optionally **`TONIC_CHROMA_COLLECTION`**). You can set these via job or step **`env:`**, or use the composite inputs **`tonic_chroma_url`**, **`tonic_chroma_collection`**, **`tonic_retrieval_backend`**, **`tonic_embedding_base_url`**, **`tonic_embedding_backend`** (forwarded to the same-named environment variables on the agent step).
+
+Full variable table and hybrid flags: **[`docs/retrieval-hydration.md`](../../docs/retrieval-hydration.md)**.
+
+**Example (step `env:` + extra args):**
+
+```yaml
+- uses: ./agents/github-action-agent
+  with:
+    enable_ast_hydration: true
+    ast_hydration_subcommand: hydrate
+    ast_hydration_extra_args: --enable-retrieval --retrieval-backend chroma
+  env:
+    TONIC_CHROMA_URL: http://127.0.0.1:8000
+    TONIC_RETRIEVAL_BACKEND: chroma
+```
+
+Optional PR workflows can start a local Chroma service when the repo variable **`TONIC_PR_AGENT_CHROMA_SERVICE`** is `true`; see **`docs/retrieval-hydration.md`** (PR agent workflows).
+
+**Precedence:** If **`TONIC_RETRIEVAL_BACKEND`** is set in the environment, it overrides the CLI `--retrieval-backend` value (same as `merge-tonic` Python). To drive the backend only from the CLI, omit **`TONIC_RETRIEVAL_BACKEND`** from `env`.
+
+## Troubleshooting: ast-grep hydration
+
+With `enable_ast_hydration: true`, exit code **10** means `sg` was not found. The composite action installs **`@ast-grep/cli`** via npm (`ast_grep_version`, default `0.39.0`) when hydration is enabled. Locally, install the CLI or set `TONIC_AST_GREP_BIN`.
 
 ## Published install (PyPI)
 

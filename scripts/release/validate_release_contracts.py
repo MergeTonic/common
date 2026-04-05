@@ -33,6 +33,142 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _validate_hydration_schemas(failures: list[str]) -> None:
+    """Ensure hydration JSON Schema files exist, parse, and declare expected artifact properties."""
+    checks: list[tuple[str, list[str]]] = [
+        ("schemas/tonic-ast-hydration.v1.json", ["schema", "version", "tool", "repo_root", "matches"]),
+        ("schemas/tonic-hydration-run.v1.json", ["schema", "version", "run_id", "status", "exit_code"]),
+        (
+            "schemas/tonic-hydration-intent-bootstrap.v1.json",
+            ["schema", "version", "left_intent", "right_intent", "sources"],
+        ),
+        ("schemas/tonic-question-refinement.v1.json", ["schema", "version", "mode"]),
+        ("schemas/tonic-conflict-context.v1.json", ["schema", "version", "conflict_regions"]),
+        ("schemas/tonic-intent-hydration.v1.json", ["schema", "version", "left_intent", "right_intent"]),
+        ("schemas/tonic-code-walk-trace.v1.json", ["schema", "version", "steps"]),
+        ("schemas/tonic-retrieval-hydration.v1.json", ["schema", "version", "hits"]),
+        (
+            "schemas/tonic-memory-vector-index.v1.json",
+            ["schema", "version", "embedding_fingerprint", "records"],
+        ),
+    ]
+    for rel, prop_keys in checks:
+        p = Path(rel)
+        if not p.is_file():
+            failures.append(f"missing hydration schema: {rel}")
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            failures.append(f"invalid JSON in {rel}: {e}")
+            continue
+        if not isinstance(data, dict):
+            failures.append(f"hydration schema root must be object: {rel}")
+            continue
+        props = data.get("properties")
+        if not isinstance(props, dict):
+            failures.append(f"hydration schema {rel} must define object properties")
+            continue
+        for k in prop_keys:
+            if k not in props:
+                failures.append(f"hydration schema {rel} missing properties.{k}")
+
+
+def _validate_weave_schemas(failures: list[str]) -> None:
+    """Ensure weave JSON Schema files exist, parse, and declare expected top-level properties."""
+    checks: list[tuple[str, list[str]]] = [
+        (
+            "schemas/tonic-git-manifest.v1.json",
+            ["schema", "version", "commit", "paths"],
+        ),
+        (
+            "schemas/tonic-weave-hub-index.v1.json",
+            ["schema", "version", "repo_id", "objects"],
+        ),
+        (
+            "schemas/tonic-weave-verify-report.v1.json",
+            ["schema", "version", "status", "repo_root", "checks"],
+        ),
+    ]
+    for rel, prop_keys in checks:
+        p = Path(rel)
+        if not p.is_file():
+            failures.append(f"missing weave schema: {rel}")
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            failures.append(f"invalid JSON in {rel}: {e}")
+            continue
+        if not isinstance(data, dict):
+            failures.append(f"weave schema root must be object: {rel}")
+            continue
+        props = data.get("properties")
+        if not isinstance(props, dict):
+            failures.append(f"weave schema {rel} must define object properties")
+            continue
+        for k in prop_keys:
+            if k not in props:
+                failures.append(f"weave schema {rel} missing properties.{k}")
+
+
+def _rule_files_from_ast_grep_index(text: str) -> list[str]:
+    out: list[str] = []
+    in_list = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("ruleFiles:"):
+            in_list = True
+            continue
+        if in_list:
+            m = re.match(r"^\s*-\s*(\S+)", line)
+            if m:
+                out.append(m.group(1))
+            elif stripped and not line[0].isspace():
+                break
+    return out
+
+
+def _validate_ast_grep_rulepack_mirror(failures: list[str]) -> None:
+    idx_path = Path("packages/tonic-core/rules/ast-grep/index.yaml")
+    if not idx_path.is_file():
+        failures.append("missing packages/tonic-core/rules/ast-grep/index.yaml")
+        return
+    files = _rule_files_from_ast_grep_index(idx_path.read_text(encoding="utf-8"))
+    if not files:
+        failures.append("ast-grep index.yaml must list ruleFiles")
+        return
+    ts_dir = Path("packages/tonic-core/rules/ast-grep")
+    py_dir = Path("merge-tonic-lib/tonic/data/ast_grep_rules")
+    for name in files:
+        ts_f = ts_dir / name
+        py_f = py_dir / name
+        if not ts_f.is_file():
+            failures.append(f"ast-grep rulepack missing TS file: {ts_f}")
+            continue
+        if not py_f.is_file():
+            failures.append(
+                f"ast-grep rulepack missing Py mirror: {py_f} (copy from packages/tonic-core/rules/ast-grep/)"
+            )
+            continue
+        if ts_f.read_bytes() != py_f.read_bytes():
+            failures.append(f"ast-grep rule drift: {name} differs between TS rulepack and merge-tonic-lib mirror")
+
+
+def _validate_hydration_prompt_embeds(failures: list[str]) -> None:
+    core = Path("packages/tonic-core/hydration-prompts/embed.json")
+    py_data = Path("merge-tonic-lib/tonic/data/hydration_prompts_embed.json")
+    for p, label in ((core, "tonic-core embed.json"), (py_data, "merge-tonic-lib hydration_prompts_embed.json")):
+        if not p.is_file():
+            failures.append(f"missing {label}: {p} (run: python scripts/generate_prompt_bundle.py)")
+            return
+    if core.read_bytes() != py_data.read_bytes():
+        failures.append(
+            "hydration embed.json drift: packages/tonic-core/hydration-prompts/embed.json must match "
+            "merge-tonic-lib/tonic/data/hydration_prompts_embed.json (run: python scripts/generate_prompt_bundle.py)"
+        )
+
+
 def _validate_ai_prompt_bundle_copies(failures: list[str]) -> None:
     canonical = Path("agents/shared-tonic-ai-prompts/prompts.v1.json")
     node_copy = Path("agents/github-action-agent-node/src/data/aiPrompts.v1.json")
@@ -78,15 +214,20 @@ def main() -> int:
         failures.append("node action dependency @mergetonic/core must track ts cli/core version")
 
     _validate_ai_prompt_bundle_copies(failures)
+    _validate_hydration_schemas(failures)
+    _validate_weave_schemas(failures)
+    _validate_ast_grep_rulepack_mirror(failures)
+    _validate_hydration_prompt_embeds(failures)
 
     release_targets = _read_release_targets()
-    allowed_version_keys = {"ts_cli", "js_action", "vsmt", "py_cli", "py_action"}
+    allowed_version_keys = {"ts_cli", "js_action", "vsmt", "py_cli", "py_action", "hf_weave"}
     expected_source_dir = {
         "vsmt": "extensions/tonic-conflict-resolver",
         "js-action": "agents/github-action-agent-node",
         "py-action": "agents/github-action-agent",
         "tsmt": "packages/tonic-core",
         "mtpy": "merge-tonic-lib",
+        "hf-weave": "packages/hf-weave",
         ".github": ".github",
     }
     for target in release_targets.get("targets", []):

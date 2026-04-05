@@ -76,6 +76,20 @@ export async function getGitBlobText(owner: string, repo: string, blobSha: strin
   }
 }
 
+export async function getPullRequest(
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  token: string,
+): Promise<Record<string, unknown>> {
+  const url = `${apiRoot()}/repos/${owner}/${repo}/pulls/${pullNumber}`;
+  const data = await githubGetJson(url, token);
+  if (!data || typeof data !== "object") {
+    throw new Error("getPullRequest: invalid response payload");
+  }
+  return data as Record<string, unknown>;
+}
+
 export async function postIssueComment(
   owner: string,
   repo: string,

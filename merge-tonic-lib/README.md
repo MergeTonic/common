@@ -4,6 +4,8 @@
 
 `python -m tonic.cli` mirrors the `merge-tonic` binary from `@mergetonic/core`. For `git compare`, `git materialize` / `from-index`, `git merge`, and `apply`, see [docs/cli-repo-commands.md](../docs/cli-repo-commands.md).
 
+**Hydration + retrieval in CI:** `merge-tonic hydrate --enable-retrieval --retrieval-backend chroma` works when `TONIC_CHROMA_URL` points at a running Chroma HTTP API; embeddings default to the deterministic histogram provider unless `TONIC_EMBEDDING_BASE_URL` and `TONIC_EMBEDDING_BACKEND` target an OpenAI-compatible server (for example [llama-server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)). For the default **memory** backend, optional `--vector-cache-path` / `TONIC_VECTOR_CACHE_PATH` persists chunk embeddings across runs. See [docs/retrieval-hydration.md](../docs/retrieval-hydration.md).
+
 Shorthand support is available in both Python and TypeScript CLIs: top-level aliases (`m`,`a`,`c`,`r`,`g`), git aliases (`f`,`mat`,`fi`,`m`,`wt`), short flags (for example `-l/-r`, `-f`, `-w`, `-p`, `-o`), and marker-optional positional forms such as `merge-tonic r left.txt right.txt` and `merge-tonic a conflicted.txt`.
 
 Blame metadata is optional in report-oriented flows: `merge-tonic report --blame --left-commit-id <sha> --right-commit-id <sha>` (and `git compare --blame`) emits conflict-region `left_commit_ids` / `right_commit_ids` in `merge-tonic-report` JSON.
@@ -208,7 +210,7 @@ This isn't a bug. It's deeply necessary for eventual consistency. The lesson is:
 
 **Approach 2: Replaying exact patches.** Cherry-pick by applying the exact same patches in the exact same order. This works — the structurally determined property guarantees identical states — but it's fragile. You need exactly the right sequence of diffs, and any deviation breaks the equivalence.
 
-**Approach 3: History-range selection.** Select a range of lines in the state whose history you want to cherry-pick and apply that slice directly. This is the right approach. The state format used here supports it — each line carries enough metadata to be extracted and transplanted. Lines which anchor the cherry-picked range but aren't themselves part of it would be included at generation count zero, meaning they're structurally present but invisible. The UX for this hasn't been implemented yet.
+**Approach 3: History-range selection.** Select a range of lines in the state whose history you want to cherry-pick and apply that slice directly. This is the right approach. The state format used here supports it — each line carries enough metadata to be extracted and transplanted. Lines which anchor the cherry-picked range but aren't themselves part of it would be included at generation count zero, meaning they're structurally present but invisible. Library support: `weave inspect` / `extract` / `splice` (see `merge-tonic weave --help`) and [docs/weave-line-indices-and-lca.md](../docs/weave-line-indices-and-lca.md) for weave row vs visible line indices, replay, and LCA vs `merge_states`.
 
 ## Local Undo
 
@@ -271,10 +273,10 @@ Editable monorepo install: `pip install -e "./merge-tonic-lib[dev]"` then `pytho
 python -m pytest tests/test_tonic.py -v
 ```
 
-## Provenance
+## inspiration
 
-The code in this project was written artisanally. This README was not.
+The code in this project was inspired by .
 
 ## License
 
-Public domain.
+GPL-2

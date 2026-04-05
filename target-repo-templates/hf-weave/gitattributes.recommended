@@ -1,0 +1,2 @@
+# Copy relevant lines into the consumer repo `.gitattributes`.
+*.md filter=tonic-weave-clean merge=tonic-weave text eol=lf

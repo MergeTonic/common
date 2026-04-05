@@ -14,6 +14,12 @@ export type MergeArtifactJson = {
   left_commit_id?: string;
   right_commit_id?: string;
   annotated_lines?: string[];
+  /** Present for merge-base-aware three-way compare */
+  merge_base_sha?: string;
+  compare_three?: boolean;
+  weave_merge?: boolean;
+  /** Set when compare-three used weave merge driver write-back */
+  weave_writeback?: "weave";
 };
 
 const MERGE_ARTIFACT_VERSION = "1";
@@ -40,6 +46,18 @@ export function artifactToDict(
   if (a.right_commit_id) {
     d.right_commit_id = a.right_commit_id;
   }
+  if (a.merge_base_sha) {
+    d.merge_base_sha = a.merge_base_sha;
+  }
+  if (a.compare_three) {
+    d.compare_three = a.compare_three;
+  }
+  if (a.weave_merge) {
+    d.weave_merge = a.weave_merge;
+  }
+  if (a.weave_writeback) {
+    d.weave_writeback = a.weave_writeback;
+  }
   if (includeAnnotated) {
     d.annotated_lines = a.annotated_lines;
   }
@@ -60,6 +78,11 @@ export function mergeReportDict(params: {
   markerBranchCommit?: string | null;
   markerPaths?: string[];
   mergeReportArtifactName?: string | null;
+  mergeBaseSha?: string;
+  leftRef?: string;
+  rightRef?: string;
+  compareMode?: string;
+  tonicRepoProfile?: Record<string, unknown>;
 }): Record<string, unknown> {
   const files = params.artifacts.map((a) => {
     const inc =
@@ -88,6 +111,21 @@ export function mergeReportDict(params: {
   }
   if (params.mergeReportArtifactName) {
     out.merge_report_artifact_name = params.mergeReportArtifactName;
+  }
+  if (params.mergeBaseSha) {
+    out.merge_base_sha = params.mergeBaseSha;
+  }
+  if (params.leftRef) {
+    out.left_ref = params.leftRef;
+  }
+  if (params.rightRef) {
+    out.right_ref = params.rightRef;
+  }
+  if (params.compareMode) {
+    out.compare_mode = params.compareMode;
+  }
+  if (params.tonicRepoProfile) {
+    out.tonic_repo_profile = params.tonicRepoProfile;
   }
   return out;
 }
