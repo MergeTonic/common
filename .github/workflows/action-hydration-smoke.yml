@@ -7,6 +7,7 @@ on:
       - "agents/github-action-agent-node/**"
       - "merge-tonic-lib/**"
       - "packages/tonic-core/**"
+      - "packages/tonic-coding-hydration/**"
   workflow_dispatch:
 
 jobs:
@@ -17,6 +18,23 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: pip install tonic (workspace)
+        run: pip install -e ./merge-tonic-lib
+      - name: merge-tonic ast-grep-hydrate help
+        run: MERGETONIC_LICENSE_ACCEPTED=1 python -m tonic.cli ast-grep-hydrate --help
+      - name: merge-tonic hydrate smoke (fake sg, retrieval)
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          echo "// x" >"$d/sample.ts"
+          FAKE_SG="$GITHUB_WORKSPACE/packages/tonic-core/src/test/fixtures/astGrep/fake-sg-success.js"
+          MERGETONIC_LICENSE_ACCEPTED=1 python -m tonic.cli hydrate \
+            --repo "$d" --out-dir "$d/out" --left-intent L --right-intent R --question-mode off \
+            --enable-retrieval --enable-code-walk \
+            --ast-grep-bin "$FAKE_SG"
+          test -s "$d/out/retrieval-hydration.json"
+          test -s "$d/out/code-walk-trace.json"
       - name: Verify Python action metadata
         run: |
           python - <<'PY'
@@ -37,7 +55,72 @@ PY
         with:
           node-version: "20"
       - run: npm ci
-      - run: npm run build -w @mergetonic/core -w @mergetonic/github-agent
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/core -w @mergetonic/github-agent
+      - name: merge-tonic ast-grep-hydrate help (license gate)
+        run: MERGETONIC_LICENSE_ACCEPTED=1 node packages/tonic-core/dist/cli.js ast-grep-hydrate --help
+      - name: merge-tonic hydrate smoke (fake sg, retrieval + code-walk)
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          echo "// x" >"$d/sample.ts"
+          FAKE_SG="$GITHUB_WORKSPACE/packages/tonic-core/src/test/fixtures/astGrep/fake-sg-success.js"
+          MERGETONIC_LICENSE_ACCEPTED=1 node packages/tonic-core/dist/cli.js hydrate \
+            --repo "$d" --out-dir "$d/out" --left-intent L --right-intent R --question-mode off \
+            --enable-retrieval --enable-code-walk \
+            --ast-grep-bin "$FAKE_SG"
+          test -s "$d/out/retrieval-hydration.json"
+          test -s "$d/out/code-walk-trace.json"
       - name: Verify Node action metadata
         run: |
           node -e "const fs=require('fs'); const y=fs.readFileSync('agents/github-action-agent-node/action.yml','utf8'); if(!y.includes('using: composite')||!y.includes('tonic_github_agent_version')) process.exit(1);"
+
+  # Canonical Chroma service image/ports for copy-paste (PR agent jobs: tonic_ast_chroma in tonic-pr-agent*.yml).
+  hydrate-chroma-smoke:
+    runs-on: ubuntu-latest
+    services:
+      chroma:
+        image: chromadb/chroma:0.5.23
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/core
+      - run: pip install -e ./merge-tonic-lib
+      - name: Node hydrate with Chroma + histogram embeddings
+        shell: bash
+        env:
+          TONIC_CHROMA_URL: http://127.0.0.1:8000
+          TONIC_RETRIEVAL_BACKEND: chroma
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          echo "// x" >"$d/sample.ts"
+          FAKE_SG="$GITHUB_WORKSPACE/packages/tonic-core/src/test/fixtures/astGrep/fake-sg-success.js"
+          MERGETONIC_LICENSE_ACCEPTED=1 node packages/tonic-core/dist/cli.js hydrate \
+            --repo "$d" --out-dir "$d/out" --left-intent L --right-intent R --question-mode off \
+            --enable-retrieval --retrieval-backend chroma \
+            --ast-grep-bin "$FAKE_SG"
+          test -s "$d/out/retrieval-hydration.json"
+      - name: Python hydrate with Chroma + histogram embeddings
+        shell: bash
+        env:
+          TONIC_CHROMA_URL: http://127.0.0.1:8000
+          TONIC_RETRIEVAL_BACKEND: chroma
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          echo "// x" >"$d/sample.ts"
+          FAKE_SG="$GITHUB_WORKSPACE/packages/tonic-core/src/test/fixtures/astGrep/fake-sg-success.js"
+          MERGETONIC_LICENSE_ACCEPTED=1 python -m tonic.cli hydrate \
+            --repo "$d" --out-dir "$d/out" --left-intent L --right-intent R --question-mode off \
+            --enable-retrieval --retrieval-backend chroma \
+            --ast-grep-bin "$FAKE_SG"
+          test -s "$d/out/retrieval-hydration.json"

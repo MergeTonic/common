@@ -1,0 +1,38 @@
+name: ast-grep-contracts
+
+on:
+  pull_request:
+    paths:
+      - "packages/tonic-core/**"
+      - "packages/tonic-coding-hydration/**"
+      - "merge-tonic-lib/**"
+      - "schemas/**"
+      - "prompts/**"
+      - "scripts/generate_prompt_bundle.py"
+      - "scripts/release/validate_release_contracts.py"
+      - ".github/workflows/ast-grep-contracts.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate release contracts (hydration schemas)
+        run: python scripts/release/validate_release_contracts.py
+      - name: Check generated prompt bundle and hydration embeds
+        run: python scripts/generate_prompt_bundle.py --check
+      - name: npm test @mergetonic/core
+        run: npm install && npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave && npm run test -w @mergetonic/core
+        working-directory: .
+      - name: pytest merge-tonic-lib (ast-grep + hydration + chroma smoke)
+        run: python -m pip install -e ".[dev,ai]" && python -m pytest tests/test_ast_grep_cli.py tests/test_build_intent_hydration.py tests/test_intent_hydration_byte_golden.py tests/test_hydrate_llm_policy.py tests/test_chroma_embedded_smoke.py tests/test_chroma_retrieval_smoke.py tests/test_code_search_agent.py -v
+        working-directory: merge-tonic-lib
+      - name: npm test @mergetonic/coding-hydration
+        run: npm install && npm run test -w @mergetonic/coding-hydration
+        working-directory: .

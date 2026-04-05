@@ -1,0 +1,9 @@
+# https://pre-commit.com — published hook id for consumer repos
+repos:
+  - repo: local
+    hooks:
+      - id: mergetonic-weave-verify
+        name: tonic weave verify (staged)
+        entry: merge-tonic weave verify --staged --strict
+        language: system
+        pass_filenames: false

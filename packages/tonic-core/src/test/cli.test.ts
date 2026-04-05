@@ -7,6 +7,8 @@ import { spawnSync } from "node:child_process";
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const fixDir = path.join(repoRoot, "merge-tonic-lib", "tests", "fixtures", "cli");
+/** Resolves when tests run from dist/test (npm run build). */
+const astGrepFixDir = path.join(__dirname, "..", "..", "src", "test", "fixtures", "astGrep");
 const cliJs = path.join(__dirname, "..", "cli.js");
 
 function runCli(args: string[], env?: NodeJS.ProcessEnv): { status: number | null; stdout: string; stderr: string } {
@@ -186,6 +188,200 @@ test("git materialize --write after merge conflict", () => {
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test("ast-grep-hydrate CLI writes tonic-ast-hydration with fake sg", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-agh-"));
+  fs.writeFileSync(path.join(dir, "sample.ts"), "// x\n", "utf8");
+  const fake = path.resolve(astGrepFixDir, "fake-sg-success.js");
+  const out = path.join(dir, "ast.json");
+  const runOut = path.join(dir, "run.json");
+  const { status } = runCli([
+    "ast-grep-hydrate",
+    "--repo",
+    dir,
+    "--out",
+    out,
+    "--run-out",
+    runOut,
+    "--ast-grep-bin",
+    fake,
+  ]);
+  assert.equal(status, 0);
+  const ast = JSON.parse(fs.readFileSync(out, "utf8")) as { schema: string };
+  assert.equal(ast.schema, "tonic-ast-hydration");
+  const run = JSON.parse(fs.readFileSync(runOut, "utf8")) as { exit_code: number };
+  assert.equal(run.exit_code, 0);
+});
+
+test("ast-grep-hydrate CLI returns 10 when binary missing", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-agh-miss-"));
+  const bogus = path.join(dir, "no-sg-here.exe");
+  const out = path.join(dir, "ast.json");
+  const runOut = path.join(dir, "run.json");
+  const { status } = runCli([
+    "agh",
+    "--repo",
+    dir,
+    "--out",
+    out,
+    "--run-out",
+    runOut,
+    "--ast-grep-bin",
+    bogus,
+  ]);
+  assert.equal(status, 10);
+  const run = JSON.parse(fs.readFileSync(runOut, "utf8")) as { exit_code: number; status: string };
+  assert.equal(run.exit_code, 10);
+  assert.equal(run.status, "failed");
+});
+
+test("hydrate CLI writes intent bootstrap and intent-hydration with fake sg", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-hyd-"));
+  fs.writeFileSync(path.join(dir, "sample.ts"), "// y\n", "utf8");
+  const fake = path.resolve(astGrepFixDir, "fake-sg-success.js");
+  const outDir = path.join(dir, "out");
+  const { status } = runCli([
+    "hydrate",
+    "--repo",
+    dir,
+    "--out-dir",
+    outDir,
+    "--left-intent",
+    "merge A",
+    "--right-intent",
+    "merge B",
+    "--question-mode",
+    "off",
+    "--ast-grep-bin",
+    fake,
+  ]);
+  assert.ok(status === 0 || status === 13, `expected 0 or partial 13, got ${status}`);
+  const bootPath = path.join(outDir, "intent-bootstrap.json");
+  const intentPath = path.join(outDir, "intent-hydration.json");
+  assert.ok(fs.existsSync(bootPath));
+  assert.ok(fs.existsSync(intentPath));
+  const boot = JSON.parse(fs.readFileSync(bootPath, "utf8")) as {
+    left_intent: string;
+    right_intent: string;
+  };
+  assert.equal(boot.left_intent, "merge A");
+  assert.equal(boot.right_intent, "merge B");
+  const ih = JSON.parse(fs.readFileSync(intentPath, "utf8")) as { schema: string };
+  assert.equal(ih.schema, "tonic-intent-hydration");
+});
+
+test("hydrate CLI unknown --phase exits 11", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-hyd-phase-"));
+  const outDir = path.join(dir, "out");
+  const { status, stderr } = runCli([
+    "hydrate",
+    "--repo",
+    dir,
+    "--out-dir",
+    outDir,
+    "--phase",
+    "not-a-real-phase",
+    "--left-intent",
+    "a",
+    "--right-intent",
+    "b",
+  ]);
+  assert.equal(status, 11);
+  assert.match(stderr, /--phase|unknown/i);
+});
+
+test("hydrate --phase intent-bootstrap skips downstream stages", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-hyd-phase-boot-"));
+  const outDir = path.join(dir, "out");
+  const { status } = runCli([
+    "hydrate",
+    "--repo",
+    dir,
+    "--out-dir",
+    outDir,
+    "--phase",
+    "intent-bootstrap",
+    "--left-intent",
+    "a",
+    "--right-intent",
+    "b",
+    "--question-mode",
+    "off",
+  ]);
+  assert.equal(status, 0);
+  const run = JSON.parse(fs.readFileSync(path.join(outDir, "hydration-run.json"), "utf8")) as {
+    pipeline?: { stages: Array<{ id: string; status: string }> };
+  };
+  const stages = run.pipeline?.stages ?? [];
+  assert.ok(stages.some((s) => s.id === "conflicts" && (s.status === "ok" || s.status === "skipped")));
+  assert.ok(stages.some((s) => s.id === "intent_bootstrap" && s.status === "ok"));
+  assert.ok(stages.some((s) => s.id === "question_refinement" && s.status === "skipped"));
+});
+
+test("hydrate with improver and no API key exits partial with warning", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-hyd-llm-"));
+  fs.writeFileSync(path.join(dir, "sample.ts"), "// y\n", "utf8");
+  const fake = path.resolve(astGrepFixDir, "fake-sg-success.js");
+  const outDir = path.join(dir, "out");
+  const env: NodeJS.ProcessEnv = { ...process.env, MERGETONIC_LICENSE_ACCEPTED: "1" };
+  delete env.OPENAI_API_KEY;
+  const { status, stderr } = runCli(
+    [
+      "hydrate",
+      "--repo",
+      dir,
+      "--out-dir",
+      outDir,
+      "--left-intent",
+      "a",
+      "--right-intent",
+      "b",
+      "--question-mode",
+      "improver",
+      "--openai-api-key-env",
+      "OPENAI_API_KEY",
+      "--ast-grep-bin",
+      fake,
+    ],
+    env,
+  );
+  assert.equal(status, 13, stderr);
+  const run = JSON.parse(fs.readFileSync(path.join(outDir, "hydration-run.json"), "utf8")) as {
+    warnings: Array<{ code?: string; message?: string }>;
+  };
+  assert.ok(run.warnings.some((w) => /missing|skipped|OPENAI/i.test(w.message ?? "")));
+});
+
+test("hydrate with improver and strict-llm fails when API key missing", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-cli-hyd-strict-"));
+  fs.writeFileSync(path.join(dir, "sample.ts"), "// y\n", "utf8");
+  const fake = path.resolve(astGrepFixDir, "fake-sg-success.js");
+  const outDir = path.join(dir, "out2");
+  const env: NodeJS.ProcessEnv = { ...process.env, MERGETONIC_LICENSE_ACCEPTED: "1" };
+  delete env.OPENAI_API_KEY;
+  const { status } = runCli(
+    [
+      "hydrate",
+      "--repo",
+      dir,
+      "--out-dir",
+      outDir,
+      "--left-intent",
+      "a",
+      "--right-intent",
+      "b",
+      "--question-mode",
+      "improver",
+      "--strict-llm",
+      "--openai-api-key-env",
+      "OPENAI_API_KEY",
+      "--ast-grep-bin",
+      fake,
+    ],
+    env,
+  );
+  assert.equal(status, 11);
 });
 
 test("merge positional branch helper writes markers on target branch", () => {

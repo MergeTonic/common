@@ -1,0 +1,55 @@
+name: Publish mergetonic-hf-weave (PyPI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base ref for change detection
+        required: true
+        default: main
+      head_ref:
+        description: Head ref for change detection
+        required: true
+        default: HEAD
+      publish_pypi:
+        description: Actually publish to PyPI (manual safety gate)
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  detect:
+    uses: ./.github/workflows/detect-release-matrix.yml
+    with:
+      base_ref: ${{ inputs.base_ref }}
+      head_ref: ${{ inputs.head_ref }}
+
+  publish:
+    needs: [detect, test]
+    if: contains(needs.detect.outputs.matrix_json, '"id": "hf-weave"') && inputs.publish_pypi == true && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build packages/hf-weave-py
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/hf-weave-py/dist/
+
+  test:
+    needs: detect
+    if: contains(needs.detect.outputs.matrix_json, '"id": "hf-weave"')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "./merge-tonic-lib[dev]"
+      - run: pip install -e "./packages/hf-weave-py[dev]"
+      - run: python -m pytest packages/hf-weave-py/tests -v

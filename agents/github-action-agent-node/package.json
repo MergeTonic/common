@@ -23,10 +23,10 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p .",
+    "build": "node ../../scripts/run-tsc.cjs -p .",
     "start": "node dist/index.js",
-    "pretest": "cd ../.. && python scripts/sync_agent_ai_prompts.py",
-    "test": "npm run build && node --test dist/test/agent.test.js dist/test/headLineMap.test.js dist/test/promptEngineering.test.js dist/test/aiRetry.test.js",
+    "pretest": "cd ../.. && node scripts/run_sync_agent_ai_prompts.cjs",
+    "test": "npm run build && node --test dist/test/agent.test.js dist/test/headLineMap.test.js dist/test/promptEngineering.test.js dist/test/aiRetry.test.js dist/test/astHydrationStep.test.js dist/test/promptBundleParity.test.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

@@ -20,7 +20,7 @@ def resolve_conflict_with_fallback(
             if hasattr(p, "is_available") and not p.is_available():
                 continue
             resolve = getattr(p, "resolve_conflict")
-            return resolve(conflict_file, conflict), getattr(p, "name")()
+            return resolve(conflict_file, conflict, hydration_appendix=""), getattr(p, "name")()
         except Exception as e:
             last_err = e
             continue

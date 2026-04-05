@@ -4,5 +4,13 @@
   "mtpy": "https://github.com/mergetonic/common/wiki/Core-Python-mergetonic",
   "js-action": "https://github.com/mergetonic/common/wiki/GitHub-Agent-Node",
   "py-action": "https://github.com/mergetonic/common/wiki/GitHub-Agent-Python",
-  "vsmt": "https://github.com/mergetonic/common/wiki/VSCode-Extension"
+  "agents-runtime": "https://github.com/mergetonic/common/wiki/GitHub-Agents-Runtime",
+  "vsmt": "https://github.com/mergetonic/common/wiki/VSCode-Extension",
+  "cli": "https://github.com/mergetonic/common/wiki/CLI-Reference",
+  "repo-profile": "https://github.com/mergetonic/common/wiki/Repo-Profile",
+  "hydration": "https://github.com/mergetonic/common/wiki/Hydration-Pipeline",
+  "hf-weave": "https://github.com/mergetonic/common/wiki/HF-Weave",
+  "architecture": "https://github.com/mergetonic/common/wiki/Architecture-and-Parity",
+  "release": "https://github.com/mergetonic/common/wiki/Release-and-Target-Sync",
+  "contributing-docs": "https://github.com/mergetonic/common/wiki/Contributing-Docs"
 }

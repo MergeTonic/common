@@ -17,5 +17,6 @@
 - If a rename is required, update:
   - `wiki-src/_Sidebar.md`
   - `wiki-src/_DocMap.json` (if canonical page changed)
+  - `wiki-src/_PublishConfig.json` → `allowlist_pages` when publish mode is pilot
   - all internal wiki links referencing the old slug
 - Include rename notes in release/docs operations notes.

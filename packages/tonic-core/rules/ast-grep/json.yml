@@ -1,0 +1,5 @@
+# Sentinel rule: intentionally matches nothing in normal codebases.
+id: tonic-ast-hydration-sentinel-json
+language: Json
+rule:
+  pattern: __TONIC_AST_GREP_HYDRATION_SENTINEL__

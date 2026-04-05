@@ -1,0 +1,108 @@
+{
+  "schema": "tonic-weave-cli-argv-manifest-v1",
+  "version": "1",
+  "weave_subcommands": [
+    {
+      "name": "verify",
+      "argv": ["weave", "verify", "--repo", ".", "--manifest", "", "--staged", "--strict", "--check-lfs", "--json"],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "install-hooks",
+      "argv": ["weave", "install-hooks", "--repo", ".", "--mergetonic-cmd", "merge-tonic"],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "init",
+      "argv": ["weave", "init", "--repo", "."],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "doctor",
+      "argv": ["weave", "doctor", "--repo", "."],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "replay",
+      "argv": [
+        "weave",
+        "replay",
+        "--repo",
+        ".",
+        "--manifest",
+        "",
+        "--path",
+        "",
+        "--steps-json",
+        "",
+        "--trace-key",
+        "",
+        "--from-hub",
+        "--checkpoint-every",
+        "0",
+        "--persist-checkpoints",
+        "",
+        "--publish-ctrd",
+        "--json"
+      ],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "sync",
+      "argv": [
+        "weave",
+        "sync",
+        "--repo",
+        ".",
+        "--repo-id",
+        "",
+        "--dry-run",
+        "--no-push-blobs",
+        "--update-index",
+        "--publish-ctrd",
+        "--manifest",
+        "",
+        "--replay-path",
+        "",
+        "--steps-json",
+        "",
+        "--trace-key",
+        "",
+        "--from-hub",
+        "--checkpoint-every",
+        "0",
+        "--persist-checkpoints",
+        "",
+        "--json",
+        "--git-stage",
+        "--git-commit-message",
+        ""
+      ],
+      "python_module": "mergetonic_hf_weave.cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "inspect",
+      "argv": ["weave", "inspect", "--repo", ".", "--manifest", "", "--path", "", "--weave-root", "", "--weave-file", ""],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "extract",
+      "argv": ["weave", "extract", "--repo", ".", "--manifest", "", "--path", "", "--weave-root", "", "--weave-file", "", "--range", "0:0", "--out", ""],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    },
+    {
+      "name": "splice",
+      "argv": ["weave", "splice", "--target-weave", "", "--fragment-weave", "", "--split", "", "--after-visible", "", "--out", ""],
+      "python_module": "tonic.weave_git.weave_cli",
+      "typescript_entry": "runWeaveFromArgv"
+    }
+  ]
+}

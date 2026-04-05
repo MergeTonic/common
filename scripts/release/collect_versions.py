@@ -23,6 +23,7 @@ def main() -> int:
         "vsmt": _json_version(root / "extensions/tonic-conflict-resolver/package.json"),
         "py_cli": _toml_project_version(root / "merge-tonic-lib/pyproject.toml"),
         "py_action": _toml_project_version(root / "agents/github-action-agent/pyproject.toml"),
+        "hf_weave": _json_version(root / "packages/hf-weave/package.json"),
     }
     print(json.dumps(versions))
     return 0

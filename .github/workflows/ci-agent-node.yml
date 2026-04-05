@@ -24,5 +24,5 @@ jobs:
           python-version: "3.12"
       - run: npm ci
       - run: python scripts/sync_agent_ai_prompts.py
-      - run: npm run build -w @mergetonic/core
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - run: npm run test -w @mergetonic/github-agent

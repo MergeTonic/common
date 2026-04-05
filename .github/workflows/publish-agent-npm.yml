@@ -41,8 +41,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: python scripts/sync_agent_ai_prompts.py
-      - run: npm run build -w @mergetonic/core
-      - run: npm run build -w @mergetonic/github-agent
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core -w @mergetonic/github-agent
       - name: Smoke run (local demo)
         run: npx --yes ./agents/github-action-agent-node
         env:
@@ -65,4 +64,5 @@ jobs:
           node-version: "20"
       - run: npm ci
       - run: python scripts/sync_agent_ai_prompts.py
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - run: npm run test -w @mergetonic/github-agent

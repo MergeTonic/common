@@ -1,0 +1,110 @@
+name: CI hf-weave
+
+on:
+  pull_request:
+    paths:
+      - "packages/hf-weave/**"
+      - "packages/hf-weave-py/**"
+      - "packages/tonic-core/src/weaveGit/**"
+      - "packages/tonic-core/src/weaveCli.ts"
+      - "merge-tonic-lib/tonic/weave_git/**"
+      - "merge-tonic-lib/tonic/hf_weave/**"
+      - "schemas/tonic-git-*.json"
+      - "schemas/tonic-weave-*.json"
+      - ".github/workflows/ci-hf-weave.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
+      - run: npm run test -w @mergetonic/core
+      - run: npm run test -w @mergetonic/hf-weave
+      - name: No @huggingface npm imports in @mergetonic/core sources
+        run: |
+          set -euo pipefail
+          hits=$(grep -RIn "from [\"']@huggingface" packages/tonic-core/src --include='*.ts' || true)
+          hits_req=$(grep -RIn "require([\"']@huggingface" packages/tonic-core/src --include='*.ts' || true)
+          if [ -n "$hits" ] || [ -n "$hits_req" ]; then
+            echo "Unexpected @huggingface package import in tonic-core sources (keep Hub URLs in hf-weave, not SDK imports here):"
+            echo "$hits"
+            echo "$hits_req"
+            exit 1
+          fi
+          echo "core hub import grep ok"
+
+  python:
+    runs-on: ubuntu-latest
+    env:
+      MERGETONIC_LICENSE_ACCEPTED: "1"
+      HF_HUB_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "./merge-tonic-lib[dev]"
+      - run: python -m pytest tests/test_weave_*.py tests/test_hf_weave_*.py tests/test_cli_argv_manifest.py -v
+        working-directory: merge-tonic-lib
+      - run: pip install -e "./packages/hf-weave-py[dev]"
+      - run: python -m pytest packages/hf-weave-py/tests -v
+
+  python-hub-mock:
+    runs-on: ubuntu-latest
+    env:
+      MERGETONIC_LICENSE_ACCEPTED: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "./merge-tonic-lib[dev,hf-weave]"
+      - name: Offline Hub round-trip
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: python -c "from tonic.hf_weave.client import hub_upload_download_plan; hub_upload_download_plan(key='k', data=b'x')"
+      - name: Online path with mocked Hub store (no network)
+        run: |
+          python - <<'PY'
+          import os
+          from unittest.mock import patch
+          from tonic.hf_weave.client import InMemoryBlobStore, hub_upload_download_plan
+
+          os.environ.pop("HF_HUB_OFFLINE", None)
+          os.environ["TONIC_HF_WEAVE_REPO"] = "ci/mock-model"
+          shared = InMemoryBlobStore()
+          with patch("tonic.hf_weave.client.HF_AVAILABLE", True), patch(
+              "tonic.hf_weave.client.HuggingfaceHubBlobStore", lambda repo_id: shared
+          ):
+              _, got = hub_upload_download_plan(key="k2", data=b"roundtrip")
+          assert got == b"roundtrip", got
+          print("mock hub store ok")
+          PY
+
+  windows-crlf:
+    runs-on: windows-latest
+    env:
+      MERGETONIC_LICENSE_ACCEPTED: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "./merge-tonic-lib[dev]"
+      - name: pytest weave (bash glob)
+        shell: bash
+        working-directory: merge-tonic-lib
+        run: python -m pytest tests/test_weave_git_manifest.py tests/test_weave_git_verify.py -v

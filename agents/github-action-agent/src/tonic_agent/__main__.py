@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .github_api import (
     create_pull_request,
+    get_pull_request,
     list_pull_review_comments,
     post_pull_review_comment,
     upsert_issue_comment,
@@ -35,6 +36,7 @@ from .hydrate_git_merge import hydrate_git_merge
 from .marker_branch import push_tonic_marker_branch
 from .labels import apply_pr_labels_to_conflict_file
 from .merge import annotated_to_conflict_file, merge_snapshots
+from .merge_llm_hydration_context import build_merge_llm_hydration_appendix
 from .models import ConflictRegion, MergeArtifact, merge_report_dict
 from .suggestions import (
     build_github_suggestion_body,
@@ -51,6 +53,33 @@ def _load_event() -> dict:
         return {}
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def _load_pr_from_json_file() -> dict | None:
+    path = os.environ.get("TONIC_PULL_REQUEST_JSON", "").strip()
+    if not path or not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else None
+
+
+def _resolve_pr_for_agent(event: dict, owner: str, repo_name: str, token: str | None) -> dict:
+    """Build pull_request-shaped dict from webhook or TONIC_PULL_REQUEST_JSON or REST API."""
+    pr = event.get("pull_request")
+    if isinstance(pr, dict) and pr.get("number"):
+        return pr
+    cached = _load_pr_from_json_file()
+    if isinstance(cached, dict) and cached.get("number"):
+        return cached
+    issue = event.get("issue")
+    if token and isinstance(issue, dict) and issue.get("pull_request") is not None:
+        num = issue.get("number")
+        if isinstance(num, int) and num > 0:
+            return get_pull_request(owner, repo_name, num, token)
+        if isinstance(num, str) and num.isdigit():
+            return get_pull_request(owner, repo_name, int(num), token)
+    return {}
 
 
 def _truthy(val: str | None) -> bool:
@@ -77,10 +106,12 @@ def _annotated_region_snippet(annotated: list[str], reg: ConflictRegion) -> str:
     return "\n".join(annotated[sl:el])
 
 
-def _resolved_lines_for_region(cf, reg, provider):
+def _resolved_lines_for_region(cf, reg, provider, *, hydration_appendix: str = ""):
     if provider:
         try:
-            resp = provider.resolve_conflict(cf, reg)
+            resp = provider.resolve_conflict(
+                cf, reg, hydration_appendix=hydration_appendix
+            )
             lines, rat = parse_resolved_lines_from_ai(resp.content)
             if lines:
                 return lines, rat, True
@@ -98,7 +129,7 @@ def _ai_note_for_file(cf, enable: bool) -> str | None:
             return None
         parts: list[str] = []
         for i, reg in enumerate(cf.conflicts[:5]):
-            resp = provider.resolve_conflict(cf, reg)
+            resp = provider.resolve_conflict(cf, reg, hydration_appendix="")
             lines, rat = parse_resolved_lines_from_ai(resp.content)
             preview = "\n".join(lines) if lines else resp.content
             note = preview[:2000]
@@ -326,10 +357,14 @@ def main() -> None:
 
     run_id = os.environ.get("GITHUB_RUN_ID") or str(uuid.uuid4())
     event = _load_event()
-    pr = event.get("pull_request") or {}
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    owner = ""
+    name = ""
+    if repo and "/" in repo:
+        owner, name = repo.split("/", 1)
+    pr = _resolve_pr_for_agent(event, owner, name, token) if (owner and name) else {}
     title = pr.get("title") or "PR"
     number = pr.get("number")
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
 
     if not number or not repo or not token:
         _run_demo_local(verbosity, run_id)
@@ -341,7 +376,6 @@ def main() -> None:
         )
         return
 
-    owner, name = repo.split("/", 1)
     base = pr.get("base") or {}
     head = pr.get("head") or {}
     base_ref = base.get("ref") or ""
@@ -382,6 +416,12 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001
         print(f"Tonic agent: hydrate failed: {e}", file=sys.stderr)
         raise
+
+    from .ast_hydration_step import run_ast_hydration_step
+
+    ast_workspace = isolated_workspace if merge_engine == "git" else (os.environ.get("GITHUB_WORKSPACE", "").strip() or ".")
+    ast_hydration_payload = run_ast_hydration_step(ast_workspace)
+
     _validate_completion_readiness(pairs)
 
     artifacts: list[MergeArtifact] = []
@@ -489,6 +529,7 @@ def main() -> None:
         else None,
         marker_paths=marker_branch_result["paths"] if marker_branch_result else None,
         merge_report_artifact_name=merge_report_artifact_name,
+        ast_hydration=ast_hydration_payload,
     )
 
     if report_path:
@@ -599,8 +640,16 @@ def main() -> None:
                         right_lines[sl : sr + 1] if sr < len(right_lines) else []
                     )
 
+                hydration_appendix = ""
+                if ast_hydration_payload and not is_orphan:
+                    hydration_appendix = build_merge_llm_hydration_appendix(
+                        ast_workspace, ast_hydration_payload, path
+                    )
                 resolved, rat, used_ai = _resolved_lines_for_region(
-                    cf, reg, inline_provider if not is_orphan else None
+                    cf,
+                    reg,
+                    inline_provider if not is_orphan else None,
+                    hydration_appendix=hydration_appendix,
                 )
                 if not is_orphan and not suggestion_line_count_ok(
                     resolved, len(old_lines)
@@ -706,7 +755,7 @@ def main() -> None:
                         file=sys.stderr,
                     )
 
-    if enable_checks and token and number:
+    if enable_checks and token and immutable_targets.source_pr_number:
         try:
             from .github_checks import post_tonic_check
 

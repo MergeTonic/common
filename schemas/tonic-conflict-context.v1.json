@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merge.tonic/schemas/tonic-conflict-context.v1.json",
+  "title": "TonicConflictContextV1",
+  "type": "object",
+  "required": ["schema", "version", "conflict_regions"],
+  "properties": {
+    "schema": { "const": "tonic-conflict-context" },
+    "version": { "type": "string", "const": "1" },
+    "scan_scope": { "type": "string" },
+    "conflict_regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "start_line", "mid_line", "end_line"],
+        "properties": {
+          "path": { "type": "string" },
+          "region_id": { "type": "string" },
+          "start_line": { "type": "integer", "minimum": 1 },
+          "mid_line": { "type": "integer", "minimum": 1 },
+          "end_line": { "type": "integer", "minimum": 1 },
+          "ours_label": { "type": "string" },
+          "theirs_label": { "type": "string" },
+          "hunk_id": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

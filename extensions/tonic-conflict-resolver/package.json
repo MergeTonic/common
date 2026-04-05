@@ -176,8 +176,8 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p . && esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=out/extension.js --sourcemap",
-    "watch": "tsc -watch -p .",
+    "compile": "node ../../scripts/run-tsc.cjs -p . && node ../../scripts/run-esbuild.cjs src/extension.ts --bundle --platform=node --external:vscode --outfile=out/extension.js --sourcemap --sources-content=false",
+    "watch": "node ../../scripts/run-tsc.cjs -watch -p .",
     "test": "npm run compile && node --test out/test/parser.test.js out/test/agentIntegration.test.js out/test/promptTemplates.test.js",
     "package": "vsce package --no-dependencies"
   },

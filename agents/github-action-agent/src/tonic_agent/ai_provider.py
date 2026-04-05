@@ -1,4 +1,4 @@
-"""AI provider protocol and errors (adapted from rizzler ai_provider)."""
+"""AI provider protocol and errors."""
 
 from __future__ import annotations
 
@@ -53,6 +53,8 @@ class AIProvider(Protocol):
         self,
         conflict_file: ConflictFile,
         conflict: ConflictRegion,
+        *,
+        hydration_appendix: str = "",
     ) -> AIResponse: ...
 
     def resolve_file(self, conflict_file: ConflictFile) -> AIResponse: ...

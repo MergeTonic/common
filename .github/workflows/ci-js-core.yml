@@ -23,6 +23,8 @@ jobs:
         run: pip install -e "./merge-tonic-lib[dev]"
       - name: Install Node deps
         run: npm ci
+      - name: Build workspace deps for @mergetonic/core
+        run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave
       - name: Test @mergetonic/core (unit + Python parity)
         run: npm run test -w @mergetonic/core
       - name: Build @mergetonic/core

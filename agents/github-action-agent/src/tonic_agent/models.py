@@ -110,6 +110,7 @@ def merge_report_dict(
     marker_branch_commit: str | None = None,
     marker_paths: list[str] | None = None,
     merge_report_artifact_name: str | None = None,
+    ast_hydration: dict | None = None,
 ) -> dict:
     """When True, include_annotated embeds annotated_lines for all files; embed_annotated_for_marker_files adds them for conflicted files even if include_annotated is False."""
     files_out: list[dict] = []
@@ -137,4 +138,6 @@ def merge_report_dict(
         out["marker_paths"] = marker_paths
     if merge_report_artifact_name:
         out["merge_report_artifact_name"] = merge_report_artifact_name
+    if ast_hydration:
+        out["ast_hydration"] = ast_hydration
     return out
