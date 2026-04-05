@@ -29,9 +29,21 @@ jobs:
       base_ref: ${{ inputs.base_ref }}
       head_ref: ${{ inputs.head_ref }}
 
+  test:
+    needs: detect
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "vsmt"'') }}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run test -w merge-conflict-resolver
+
   package:
     needs: [detect, test]
-    if: contains(needs.detect.outputs.matrix_json, '"id": "vsmt"') && github.ref == 'refs/heads/main' && github.repository == 'mergetonic/common'
+    if: '${{ contains(needs.detect.outputs.matrix_json, ''"id": "vsmt"'') && github.ref == ''refs/heads/main'' && github.repository == ''mergetonic/common'' }}'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -63,15 +75,3 @@ jobs:
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: npx --yes ovsx publish *.vsix -p "${OVSX_PAT}"
-
-  test:
-    needs: detect
-    if: contains(needs.detect.outputs.matrix_json, '"id": "vsmt"')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "20"
-      - run: npm ci
-      - run: npm run test -w merge-conflict-resolver
