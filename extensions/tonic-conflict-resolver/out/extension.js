@@ -5398,10 +5398,36 @@ var require_regexSearch = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.regexSearchHits = regexSearchHits;
+    var MAX_PATTERN_LENGTH = 200;
+    function sanitizeRegexPattern(raw) {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        return null;
+      }
+      if (trimmed.length > MAX_PATTERN_LENGTH) {
+        return null;
+      }
+      const dangerousPatterns = [
+        /\((?:[^()\\]|\\.)+\)\s*\+\s*\+/,
+        /\((?:[^()\\]|\\.)+\)\s*\*\s*\+/,
+        /\((?:[^()\\]|\\.)+\)\s*\+\s*\*/,
+        /\(\s*\.\s*\+\s*\)\s*\+/
+      ];
+      for (const re of dangerousPatterns) {
+        if (re.test(trimmed)) {
+          return null;
+        }
+      }
+      return trimmed;
+    }
     function regexSearchHits(hits, pattern) {
+      const safePattern = sanitizeRegexPattern(pattern);
+      if (!safePattern) {
+        return [];
+      }
       let re;
       try {
-        re = new RegExp(pattern, "i");
+        re = new RegExp(safePattern, "i");
       } catch {
         return [];
       }

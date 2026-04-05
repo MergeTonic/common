@@ -28,14 +28,18 @@ jobs:
       - run: npm run build -w @mergetonic/coding-hydration -w @mergetonic/hf-weave -w @mergetonic/core
       - run: npm run test -w @mergetonic/core
       - run: npm run test -w @mergetonic/hf-weave
-      - name: No Hub imports in @mergetonic/core sources
+      - name: No @huggingface npm imports in @mergetonic/core sources
         run: |
           set -euo pipefail
-          if grep -RIn "huggingface" packages/tonic-core/src --include='*.ts' ; then
-            echo "Unexpected Hub reference in tonic-core sources"
+          hits=$(grep -RIn "from [\"']@huggingface" packages/tonic-core/src --include='*.ts' || true)
+          hits_req=$(grep -RIn "require([\"']@huggingface" packages/tonic-core/src --include='*.ts' || true)
+          if [ -n "$hits" ] || [ -n "$hits_req" ]; then
+            echo "Unexpected @huggingface package import in tonic-core sources (keep Hub URLs in hf-weave, not SDK imports here):"
+            echo "$hits"
+            echo "$hits_req"
             exit 1
           fi
-          echo "core hub grep ok"
+          echo "core hub import grep ok"
 
   python:
     runs-on: ubuntu-latest

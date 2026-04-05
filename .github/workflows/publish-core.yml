@@ -53,5 +53,5 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install -e "./merge-tonic-lib[dev]"
+      - run: pip install -e "./merge-tonic-lib[dev,hf-weave]"
       - run: python -m pytest merge-tonic-lib/tests -v
