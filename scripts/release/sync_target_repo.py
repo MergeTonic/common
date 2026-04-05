@@ -25,6 +25,24 @@ def _has_any_commit(checkout_dir: Path) -> bool:
     return r.returncode == 0
 
 
+def _ensure_git_identity(checkout_dir: Path) -> None:
+    """CI runners often have no global user.*; set local identity for commits in this clone."""
+    name = os.environ.get("GIT_COMMITTER_NAME") or os.environ.get("TONIC_SYNC_GIT_USER_NAME")
+    email = os.environ.get("GIT_COMMITTER_EMAIL") or os.environ.get("TONIC_SYNC_GIT_USER_EMAIL")
+    actor = os.environ.get("GITHUB_ACTOR", "")
+    if not name:
+        name = actor or "mergetonic-sync"
+    if not email:
+        if actor == "github-actions[bot]":
+            email = "41898282+github-actions[bot]@users.noreply.github.com"
+        elif actor:
+            email = f"{actor}@users.noreply.github.com"
+        else:
+            email = "mergetonic-sync@users.noreply.github.com"
+    _run(["git", "config", "user.name", name], cwd=checkout_dir)
+    _run(["git", "config", "user.email", email], cwd=checkout_dir)
+
+
 def _split_csv(items: str) -> list[str]:
     if not items.strip():
         return []
@@ -116,6 +134,7 @@ def main() -> int:
         _run(["git", "checkout", "-b", args.target_branch], cwd=checkout_dir)
 
     empty_before_sync = not _has_any_commit(checkout_dir)
+    _ensure_git_identity(checkout_dir)
 
     managed_paths = _split_csv(args.managed_paths)
     preserve_paths = _split_csv(args.preserve_paths)
